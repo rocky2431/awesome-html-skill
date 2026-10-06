@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>App name prototype</title>
+<style>
+/* Clickable prototype. Replace the tokens with this product's plan (references/design.md).
+   Every screen and state is a URL fragment: #screen or #screen?key=value (references/prototype.md). */
+:root {
+  --paper: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #15181c;
+  --muted: #5b636d;
+  --rule: #dde1e6;
+  --accent: #2f5bd3;
+  --accent-ink: #ffffff;
+  --danger: #b42318;
+  --ok: #1d7a4a;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", monospace;
+  --radius: 8px;
+  --gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #101216;
+    --surface: #171a20;
+    --ink: #e6e8eb;
+    --muted: #9aa2ad;
+    --rule: #2a2f37;
+    --accent: #8aa6ff;
+    --accent-ink: #0c1020;
+    --danger: #ff8070;
+    --ok: #52c58f;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--font-body); }
+html:lang(zh) body { line-height: 1.7; }
+h1, h2, h3 { margin: 0; line-height: 1.25; text-wrap: balance; }
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.2rem; }
+p { margin: 0; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Reviewer strip: in normal flow so it never covers the product. */
+.proto-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px;
+  padding: 8px var(--gutter); background: var(--ink); color: var(--paper); font-size: 13px;
+}
+.proto-bar strong { font-weight: 600; }
+.proto-bar a { color: inherit; text-underline-offset: 2px; }
+.proto-bar .links { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.sample { display: inline-block; padding: 1px 8px; border: 1px solid currentColor; border-radius: 999px; font-size: 12px; }
+
+.app { max-width: 72rem; margin-inline: auto; padding: 24px var(--gutter) 64px; }
+.app > * { min-width: 0; }
+[data-screen] { display: grid; gap: 20px; }
+[data-screen][hidden] { display: none; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.muted { color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 16px; }
+
+.btn {
+  font: inherit; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--radius); border: 1px solid var(--rule);
+  background: var(--surface); color: var(--ink); text-decoration: none;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: var(--radius);
+  background: var(--ink); color: var(--paper); font-size: 14px;
+}
+.toast[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<nav class="proto-bar" aria-label="Prototype">
+  <strong>Prototype</strong>
+  <span class="sample">Sample data</span>
+  <span class="links">
+    <!-- One link per screen and per state worth reviewing. -->
+    <a href="#home">Home</a>
+    <a href="#home?state=empty">Home, empty</a>
+    <a href="#detail?id=1">Detail</a>
+  </span>
+</nav>
+
+<div class="app">
+  <section data-screen id="home">
+    <h1>Screen title</h1>
+    <p class="muted" id="home-lead"></p>
+    <div class="row"><a class="btn primary" href="#detail?id=1">Open item</a></div>
+  </section>
+
+  <section data-screen id="detail" hidden>
+    <a href="#home">Back</a>
+    <h1 id="detail-title"></h1>
+    <div class="row">
+      <button class="btn primary" type="button" data-action="save">Save changes</button>
+      <button class="btn" type="button" disabled title="Not in this prototype">Export</button>
+    </div>
+  </section>
+</div>
+
+<div class="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+// All prototype state lives here. Sample data only.
+const state = {
+  items: [{ id: "1", name: "Sample item" }],
+};
+
+// Each screen renders itself from state and the fragment's parameters.
+const render = {
+  home(params) {
+    const empty = params.get("state") === "empty";
+    document.getElementById("home-lead").textContent = empty ? "Nothing here yet." : `${state.items.length} item(s)`;
+  },
+  detail(params) {
+    const item = state.items.find((i) => i.id === params.get("id"));
+    document.getElementById("detail-title").textContent = item ? item.name : "Item not found";
+  },
+};
+
+const actions = {
+  save() { toast("Changes saved"); },
+};
+
+const screens = [...document.querySelectorAll("[data-screen]")];
+let toastTimer;
+function toast(message) {
+  const node = document.querySelector(".toast");
+  node.textContent = message;
+  node.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { node.hidden = true; }, 2400);
+}
+
+function go(moveFocus) {
+  const [id, query = ""] = location.hash.slice(1).split("?");
+  const target = screens.find((s) => s.id === decodeURIComponent(id)) || screens[0];
+  for (const screen of screens) screen.hidden = screen !== target;
+  render[target.id]?.(new URLSearchParams(query));
+  if (moveFocus) {
+    const heading = target.querySelector("h1, h2");
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+    scrollTo(0, 0);
+  }
+}
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-action]");
+  if (button && actions[button.dataset.action]) actions[button.dataset.action](button);
+});
+addEventListener("hashchange", () => go(true));
+go(false);
+</script>
+</body>
+</html>

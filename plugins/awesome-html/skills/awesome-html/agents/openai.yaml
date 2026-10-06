@@ -1,0 +1,6 @@
+interface:
+  display_name: "Awesome HTML"
+  short_description: "Local single-file HTML pages that open offline"
+  default_prompt: "Use $awesome-html to turn this into a self-contained HTML page I can send as one file."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Project progress</title>
+<style>
+/* Progress tracker. The page renders the JSON in #track-data; update the data, not this template.
+   Layout: status line and filters up top, one section per milestone, decisions and not-done list last. */
+:root {
+  --paper: #f5f6f8;
+  --surface: #ffffff;
+  --ink: #16191d;
+  --muted: #5a626d;
+  --rule: #e0e4e9;
+  --accent: #2b59c3;
+  --done: #1d7a4a;
+  --doing: var(--accent);
+  --blocked: #b42318;
+  --todo: #8a939e;
+  --dropped: #b3b9c1;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1115;
+    --surface: #161920;
+    --ink: #e5e8ec;
+    --muted: #9ba3ae;
+    --rule: #272c34;
+    --accent: #85a5ff;
+    --done: #4cc38a;
+    --blocked: #ff7b6e;
+    --todo: #7d8792;
+    --dropped: #4b525c;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.6 var(--font-body); padding: 40px var(--gutter) 72px; }
+html:lang(zh) body { line-height: 1.75; }
+.page { max-width: 56rem; margin-inline: auto; display: grid; gap: 40px; }
+.page > * { min-width: 0; }
+h1, h2 { margin: 0; line-height: 1.25; text-wrap: balance; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.2rem; }
+p { margin: 0; text-wrap: pretty; }
+.head { display: grid; gap: 10px; }
+.summary { font-size: 1.125rem; max-width: 65ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 20px; color: var(--muted); font-size: 0.875rem; }
+.meta code { font-size: 0.85rem; overflow-wrap: anywhere; }
+.overview { display: grid; gap: 14px; padding: 20px; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; }
+.total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.total strong { font-size: 1.5rem; }
+.bar { height: 8px; border-radius: 4px; background: var(--rule); overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--done); border-radius: inherit; }
+.bar.small { height: 4px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.filters button {
+  font: inherit; font-size: 0.875rem; color: var(--ink); background: transparent; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: 999px; padding: 4px 12px; display: inline-flex; align-items: center; gap: 6px;
+  font-variant-numeric: tabular-nums; transition: background-color 0.15s, border-color 0.15s;
+}
+.filters button:hover { border-color: var(--muted); }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.groups { display: grid; gap: 32px; }
+.group { display: grid; gap: 12px; }
+.group[hidden] { display: none; }
+.group-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.group-head .count { color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; margin-left: auto; }
+.items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.item { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 4px 16px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.item[hidden] { display: none; }
+.item .name { font-weight: 500; overflow-wrap: anywhere; }
+.item .note, .group > .note { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+.item[data-status="dropped"] .name { text-decoration: line-through; color: var(--muted); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; white-space: nowrap; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--status-color); flex: none; }
+.status.s-done { --status-color: var(--done); }
+.status.s-doing { --status-color: var(--doing); }
+.status.s-blocked { --status-color: var(--blocked); }
+.status.s-blocked { font-weight: 600; }
+.status.s-todo { --status-color: var(--todo); }
+.status.s-dropped { --status-color: var(--dropped); }
+.scroll-x { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.925rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--rule); }
+th { color: var(--muted); font-weight: 500; }
+td:first-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+section.block { display: grid; gap: 12px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .item { grid-template-columns: minmax(0, 1fr); }
+  .decisions-table, .decisions-table tbody { display: block; }
+  .decisions-table thead { display: none; }
+  .decisions-table tr { display: flex; flex-wrap: wrap; gap: 2px 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .decisions-table td { border: 0; padding: 0; white-space: normal; }
+  .decisions-table td:first-child, .decisions-table td:last-child { color: var(--muted); font-size: 0.85rem; }
+  .decisions-table td:nth-child(2) { order: 3; flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
+@media print {
+  body { background: #fff; padding: 0; }
+  .filters { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="head">
+    <h1 id="title"></h1>
+    <p class="summary" id="summary"></p>
+    <div class="meta" id="meta"></div>
+  </header>
+  <section class="overview" aria-labelledby="title">
+    <div class="total" id="total"></div>
+    <div class="bar" id="total-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+    <div class="filters" id="filters" role="group"></div>
+  </section>
+  <main class="groups" id="groups"></main>
+  <section class="block" id="decisions-block" hidden>
+    <h2 id="decisions-title"></h2>
+    <div class="scroll-x"><table class="decisions-table"><thead><tr id="decisions-head"></tr></thead><tbody id="decisions"></tbody></table></div>
+  </section>
+  <section class="block" id="notdone-block" hidden>
+    <h2 id="notdone-title"></h2>
+    <ul class="plain" id="notdone"></ul>
+  </section>
+</div>
+
+<!-- Data: regenerate from the source file named in "source"; statuses are done, doing, blocked, todo, dropped. -->
+<script type="application/json" id="track-data">
+{
+  "title": "Project name",
+  "summary": "One sentence on where the project stands and what happens next.",
+  "updated": "2026-01-01",
+  "source": "docs/wip/project.md",
+  "milestones": [
+    {
+      "name": "First milestone",
+      "note": "Optional one-line context.",
+      "items": [
+        {"name": "Example item that is finished", "status": "done", "note": "Evidence, e.g. commit abc1234"},
+        {"name": "Example item in progress", "status": "doing"},
+        {"name": "Example item waiting on something", "status": "blocked", "note": "Blocked by: what, and who unblocks it"}
+      ]
+    },
+    {
+      "name": "Second milestone",
+      "items": [
+        {"name": "Example item not started", "status": "todo"},
+        {"name": "Example item cut from scope", "status": "dropped", "note": "Why it was cut"}
+      ]
+    }
+  ],
+  "decisions": [
+    {"date": "2026-01-01", "decision": "Example decision and its reason", "who": "owner"}
+  ],
+  "notDone": ["Example deliberate omission"]
+}
+</script>
+<script>
+(() => {
+  const data = JSON.parse(document.getElementById("track-data").textContent);
+  const zh = document.documentElement.lang.toLowerCase().startsWith("zh");
+  const text = zh
+    ? { done: "完成", doing: "进行中", blocked: "阻塞", todo: "待办", dropped: "已放弃", all: "全部",
+        progress: (d, t) => `完成 ${d} / ${t} 项`, updated: "更新于", source: "来源",
+        decisions: "决策记录", date: "日期", decision: "决策", who: "决定人", notDone: "还没做" }
+    : { done: "Done", doing: "In progress", blocked: "Blocked", todo: "To do", dropped: "Dropped", all: "All",
+        progress: (d, t) => `${d} of ${t} items done`, updated: "Updated", source: "Source",
+        decisions: "Decisions", date: "Date", decision: "Decision", who: "Who", notDone: "Not done" };
+  const order = ["doing", "blocked", "todo", "done", "dropped"];
+  const el = (tag, className, content) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (content != null) node.textContent = content;
+    return node;
+  };
+  const status = (value) => el("span", `status s-${value}`, text[value] || value);
+  const linked = (node, value) => {
+    for (const part of String(value).split(/(https?:\/\/[^\s，。、）)]+)/)) {
+      if (/^https?:\/\//.test(part)) {
+        const a = el("a", null, part);
+        a.href = part;
+        a.rel = "noopener";
+        node.append(a);
+      } else if (part) node.append(part);
+    }
+    return node;
+  };
+  const items = data.milestones.flatMap((m) => m.items || []);
+  const counted = (list) => list.filter((i) => i.status !== "dropped");
+  const done = (list) => list.filter((i) => i.status === "done").length;
+
+  document.getElementById("title").textContent = data.title;
+  document.getElementById("summary").textContent = data.summary || "";
+  const meta = document.getElementById("meta");
+  if (data.updated) meta.append(el("span", null, `${text.updated} ${data.updated}`));
+  if (data.source) {
+    const source = el("span", null, `${text.source} `);
+    source.append(el("code", null, data.source));
+    meta.append(source);
+  }
+
+  const live = counted(items);
+  const percent = live.length ? Math.round((done(live) / live.length) * 100) : 0;
+  const total = document.getElementById("total");
+  total.append(el("strong", null, `${percent}%`), el("span", null, text.progress(done(live), live.length)));
+  const bar = document.getElementById("total-bar");
+  bar.firstElementChild.style.width = `${percent}%`;
+  bar.setAttribute("aria-valuenow", String(percent));
+
+  const groups = document.getElementById("groups");
+  const sections = data.milestones.map((milestone) => {
+    const list = milestone.items || [];
+    const section = el("section", "group");
+    const head = el("div", "group-head");
+    head.append(el("h2", null, milestone.name));
+    if (milestone.status) head.append(status(milestone.status));
+    head.append(el("span", "count", `${done(counted(list))} / ${counted(list).length}`));
+    section.append(head);
+    if (milestone.note) section.append(el("p", "note", milestone.note));
+    const mini = el("div", "bar small");
+    const fill = el("span");
+    fill.style.width = `${counted(list).length ? (done(counted(list)) / counted(list).length) * 100 : 0}%`;
+    mini.append(fill);
+    section.append(mini);
+    const ul = el("ul", "items");
+    for (const item of list) {
+      const li = el("li", "item");
+      li.dataset.status = item.status;
+      const body = el("div");
+      body.append(el("div", "name", item.name));
+      if (item.note) body.append(linked(el("div", "note"), item.note));
+      li.append(status(item.status), body);
+      ul.append(li);
+    }
+    section.append(ul);
+    groups.append(section);
+    return section;
+  });
+
+  const filters = document.getElementById("filters");
+  const buttons = [];
+  const apply = (value) => {
+    for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.value === value));
+    for (const section of sections) {
+      let visible = 0;
+      for (const li of section.querySelectorAll(".item")) {
+        li.hidden = value !== "all" && li.dataset.status !== value;
+        if (!li.hidden) visible += 1;
+      }
+      section.hidden = visible === 0 && value !== "all";
+    }
+  };
+  for (const value of ["all", ...order]) {
+    const count = value === "all" ? items.length : items.filter((i) => i.status === value).length;
+    if (value !== "all" && count === 0) continue;
+    const button = el("button", null, `${text[value]} ${count}`);
+    button.type = "button";
+    button.dataset.value = value;
+    button.addEventListener("click", () => apply(value));
+    buttons.push(button);
+    filters.append(button);
+  }
+  apply("all");
+
+  if (data.decisions && data.decisions.length) {
+    document.getElementById("decisions-block").hidden = false;
+    document.getElementById("decisions-title").textContent = text.decisions;
+    document.getElementById("decisions-head").append(el("th", null, text.date), el("th", null, text.decision), el("th", null, text.who));
+    const body = document.getElementById("decisions");
+    for (const row of data.decisions) {
+      const tr = el("tr");
+      tr.append(el("td", null, row.date || ""), el("td", null, row.decision || ""), el("td", null, row.who || ""));
+      body.append(tr);
+    }
+  }
+  if (data.notDone && data.notDone.length) {
+    document.getElementById("notdone-block").hidden = false;
+    document.getElementById("notdone-title").textContent = text.notDone;
+    const ul = document.getElementById("notdone");
+    for (const line of data.notDone) ul.append(el("li", null, line));
+  }
+})();
+</script>
+</body>
+</html>

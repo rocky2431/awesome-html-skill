@@ -1,0 +1,11 @@
+{
+  "name": "awesome-html",
+  "version": "0.1.0",
+  "description": "Local, self-contained single-file HTML pages that open offline: explainers, progress trackers, clickable prototypes, slide decks, and charts.",
+  "author": {
+    "name": "rocky2431"
+  },
+  "skills": [
+    "./skills"
+  ]
+}

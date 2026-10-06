@@ -1,0 +1,38 @@
+Awesome HTML
+Copyright (c) 2026 rocky2431. Released under the MIT License (see LICENSE).
+
+Bundled third-party code
+------------------------
+
+plugins/awesome-html/skills/awesome-html/assets/vendor/chart.umd.min.js
+  Chart.js v4.5.1, (c) 2025 Chart.js Contributors, MIT License.
+  https://www.chartjs.org
+  Taken unmodified from the npm tarball chart.js@4.5.1
+  (registry integrity sha512-GIjfiT9dbmHRiYi6Nl2yFCq7kkwdkp1W/lp2J99rX0yo9tgJGn3lKQATztIjb5tVtevcBtIdICNWqlq5+E8/Pw==,
+  file sha256 48444a82d4edcb5bec0f1965faacdde18d9c17db3063d042abada2f705c9f54a).
+  The MIT license header is kept at the top of the file.
+
+Ideas adapted, in our own words
+-------------------------------
+
+No text below was copied; these projects shaped the guidance and are credited
+with thanks.
+
+- anthropics/skills, skills/frontend-design (Apache License 2.0,
+  https://www.apache.org/licenses/LICENSE-2.0): plan-then-critique process,
+  palette as named values, the calibration list of generated-looking defaults,
+  restraint and writing guidance. Used in references/design.md.
+- vercel-labs/web-interface-guidelines (MIT): pre-delivery checklist items.
+  Used in references/checklist.md.
+- warpdotdev/common-skills, readout (MIT): the zero-external-reference
+  contract and the parse-and-scan delivery check. Used in scripts/check.py.
+- nicobailon/visual-explainer (MIT): one claim per figure, labeled arrows,
+  narrow and wide viewport checks, file:// pitfalls.
+- plannotator/effective-html (MIT): page-type routing and the
+  neighboring-topic originality check.
+- zarazhangrui/frontend-slides (MIT): the fixed 1920x1080 stage scaled to the
+  window. Used in assets/deck.html (independent implementation).
+- tt-a1i/archify (MIT): never claim a visual check that was not performed.
+- pbakaus/impeccable (Apache License 2.0): reading-column measure.
+- Claude Code's built-in artifact guidance: general principles only (token
+  plan, designed dark mode, diagram mechanics), restated independently.

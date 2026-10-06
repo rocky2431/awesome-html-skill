@@ -1,0 +1,24 @@
+{
+  "name": "rocky-awesome-html",
+  "owner": {
+    "name": "rocky2431"
+  },
+  "metadata": {
+    "description": "Awesome HTML: local single-file HTML pages that open offline"
+  },
+  "plugins": [
+    {
+      "name": "awesome-html",
+      "source": "./plugins/awesome-html",
+      "description": "Local, self-contained single-file HTML pages that open offline: explainers, progress trackers, clickable prototypes, slide decks, and charts.",
+      "category": "productivity",
+      "tags": [
+        "html",
+        "explainer",
+        "prototype",
+        "slides",
+        "offline"
+      ]
+    }
+  ]
+}

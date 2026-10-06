@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Deck name</title>
+<style>
+/* Slide deck: every slide is a fixed 1920x1080 stage scaled to the window.
+   Replace the tokens with this deck's plan (references/design.md); sizes below are stage pixels. */
+:root {
+  --paper: #fafafa;
+  --ink: #15171a;
+  --muted: #5d646d;
+  --rule: #dcdfe4;
+  --accent: #3355cc;
+  --backdrop: #e9ebee;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-display: var(--font-body);
+  --scale: 1;
+  --progress: 0;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14161a;
+    --ink: #e8eaed;
+    --muted: #9ca3ad;
+    --rule: #2b3038;
+    --accent: #8fa8ff;
+    --backdrop: #0b0c0e;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--backdrop); }
+body { font-family: var(--font-body); color: var(--ink); }
+.slide {
+  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--scale));
+  background: var(--paper); padding: 112px 144px; overflow: hidden;
+  display: none; flex-direction: column; gap: 48px;
+}
+.slide.is-current { display: flex; }
+.slide h1, .slide h2 { font-family: var(--font-display); margin: 0; line-height: 1.1; text-wrap: balance; }
+.slide h1 { font-size: 112px; }
+.slide h2 { font-size: 72px; }
+.slide p, .slide li { font-size: 40px; line-height: 1.45; margin: 0; max-width: 32em; }
+.slide ul, .slide ol { font-size: 40px; margin: 0; padding-left: 1.1em; display: grid; gap: 20px; }
+.slide .small { font-size: 28px; color: var(--muted); }
+html:lang(zh) .slide p, html:lang(zh) .slide li { line-height: 1.7; }
+html:lang(zh) .slide h1, html:lang(zh) .slide h2 { line-height: 1.25; word-break: keep-all; }
+.slide .notes { display: none; }
+.counter { position: fixed; right: 16px; bottom: 12px; font: 13px/1 var(--font-body); color: var(--muted); font-variant-numeric: tabular-nums; }
+.progress { position: fixed; left: 0; bottom: 0; height: 3px; width: calc(var(--progress) * 100%); background: var(--accent); }
+@media (prefers-reduced-motion: no-preference) {
+  .progress { transition: width 0.2s ease-out; }
+}
+@media print {
+  @page { size: 1920px 1080px; margin: 0; }
+  html, body { height: auto; overflow: visible; background: none; }
+  .slide { display: flex; position: relative; left: 0; top: 0; transform: none; break-after: page; }
+  .counter, .progress { display: none; }
+}
+</style>
+</head>
+<body>
+<main class="deck">
+  <section class="slide" id="s1" aria-label="Slide 1">
+    <h1>Deck title</h1>
+    <p class="small">Presenter, date</p>
+  </section>
+  <section class="slide" id="s2" aria-label="Slide 2">
+    <h2>A slide title states the takeaway as a sentence</h2>
+    <p>One idea per slide. Keep body text short enough to read from the back of the room.</p>
+    <aside class="notes">Optional speaker notes; hidden on screen and in print.</aside>
+  </section>
+</main>
+<div class="progress" aria-hidden="true"></div>
+<div class="counter" aria-live="polite"></div>
+<script>
+(() => {
+  const slides = [...document.querySelectorAll(".slide")];
+  const root = document.documentElement;
+  const counter = document.querySelector(".counter");
+  let current = 0;
+  const fit = () => root.style.setProperty("--scale", String(Math.min(innerWidth / 1920, innerHeight / 1080)));
+  const fromHash = () => {
+    const n = parseInt(location.hash.slice(1), 10);
+    return Number.isFinite(n) ? n - 1 : 0;
+  };
+  const show = (index) => {
+    current = Math.max(0, Math.min(slides.length - 1, index));
+    slides.forEach((slide, n) => slide.classList.toggle("is-current", n === current));
+    root.style.setProperty("--progress", String((current + 1) / slides.length));
+    counter.textContent = `${current + 1} / ${slides.length}`;
+    try { history.replaceState(null, "", `#${current + 1}`); } catch { /* file:// can refuse */ }
+  };
+  addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(event.key)) show(current + 1);
+    else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(event.key)) show(current - 1);
+    else if (event.key === "Home") show(0);
+    else if (event.key === "End") show(slides.length - 1);
+    else return;
+    event.preventDefault();
+  });
+  addEventListener("click", (event) => {
+    if (event.target.closest("a, button, input, select, textarea, summary")) return;
+    show(current + (event.clientX > innerWidth / 3 ? 1 : -1));
+  });
+  let touchX = null;
+  addEventListener("touchstart", (event) => { touchX = event.touches[0].clientX; }, { passive: true });
+  addEventListener("touchend", (event) => {
+    if (touchX === null) return;
+    const dx = event.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) show(current + (dx < 0 ? 1 : -1));
+    touchX = null;
+  });
+  addEventListener("hashchange", () => show(fromHash()));
+  addEventListener("resize", fit);
+  fit();
+  show(fromHash());
+})();
+</script>
+</body>
+</html>

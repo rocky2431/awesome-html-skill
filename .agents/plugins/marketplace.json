@@ -1,0 +1,20 @@
+{
+  "name": "rocky-awesome-html",
+  "interface": {
+    "displayName": "Rocky Awesome HTML"
+  },
+  "plugins": [
+    {
+      "name": "awesome-html",
+      "source": {
+        "source": "local",
+        "path": "./plugins/awesome-html"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

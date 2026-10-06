@@ -1,0 +1,935 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>页面库原型</title>
+<style>
+/* Design plan.
+   Layout: a quiet desktop app shell, left-aligned; the library is one full-width table under a search-and-filter toolbar;
+   the detail screen puts the check log on the left and a contact sheet of the four renders on the right.
+   Subject axis changed: composition. A generic file browser would show equal thumbnail cards. Here the four screenshot
+   slots keep the real 400 : 1280 width ratio side by side, like frames on a contact sheet, because comparing the narrow
+   and wide render is the job. Color stays neutral; only failures get a second color, passes stay in ink. */
+:root {
+  --paper: #f2f4f5;      /* page background, cool grey tinted toward the accent */
+  --surface: #ffffff;    /* tables, panels, log */
+  --ink: #161a1d;        /* body text */
+  --muted: #56616a;      /* captions, file names, secondary text */
+  --rule: #d6dde2;       /* hairlines */
+  --accent: #0b6a80;     /* proof cyan: links, the current filter, the primary action */
+  --accent-ink: #ffffff; /* text on accent */
+  --fail: #b3261e;       /* second accent: a failed check, always with ✗ and a word */
+  --fail-ink: #ffffff;   /* text on fail */
+  --control: #7d8992;    /* borders of inputs and buttons (3:1 on surface) */
+  --accent-wash: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  --fail-wash: color-mix(in srgb, var(--fail) 8%, var(--surface));
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", monospace;
+  --step--1: 0.8333rem;
+  --step-0: 1rem;
+  --step-1: 1.2rem;
+  --step-2: 1.44rem;
+  --step-3: 1.728rem;
+  --radius: 6px;
+  --gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121619;
+    --surface: #1a1f23;
+    --ink: #e3e8eb;
+    --muted: #98a3ab;
+    --rule: #2c343a;
+    --accent: #62b6cb;
+    --accent-ink: #07232b;
+    --fail: #f0968b;
+    --fail-ink: #2a0d0a;
+    --control: #6c7881;
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--step-0)/1.75 var(--font-body);
+}
+h1, h2, h3 { line-height: 1.3; margin: 0; text-wrap: balance; }
+h1 { font-size: var(--step-3); }
+h2 { font-size: var(--step-1); }
+p { margin: 0; text-wrap: pretty; }
+a { color: var(--accent); text-underline-offset: 0.18em; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[tabindex="-1"]:focus { outline: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.mono, .file, .path, .fname { font-family: var(--font-mono); }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ic { width: 1em; height: 1em; flex: none; vertical-align: -0.14em; }
+.hint { color: var(--muted); font-size: var(--step--1); }
+.stack { display: grid; gap: 24px; min-width: 0; }
+.stack-s { display: grid; gap: 8px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.bad { color: var(--fail); font-weight: 600; white-space: nowrap; }
+.ok { white-space: nowrap; }
+
+/* App bar */
+.appbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px;
+  padding: 10px var(--gutter);
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+.brand { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: var(--step-1); }
+.brand .ic { width: 22px; height: 22px; color: var(--accent); }
+.project { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: var(--step--1); min-width: 0; }
+.sample-tag { border: 1px dashed var(--control); border-radius: 4px; padding: 0 6px; color: var(--muted); white-space: nowrap; }
+.appbar .btn { margin-left: auto; }
+
+main { max-width: 76rem; margin-inline: auto; padding: 32px var(--gutter) 40px; }
+section[data-screen] { display: grid; gap: 24px; }
+section[data-screen] > * { min-width: 0; }
+.screen-head { display: grid; gap: 6px; }
+.lead { color: var(--muted); }
+.back { justify-self: start; font-size: var(--step--1); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 40px; padding: 0 16px;
+  border: 1px solid var(--control); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-size: var(--step-0); line-height: 1.2; text-decoration: none; white-space: nowrap;
+  cursor: pointer;
+}
+.btn:hover { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+.btn[disabled] { cursor: progress; opacity: 0.7; }
+.link-btn { border: 0; background: none; padding: 4px 0; font: inherit; font-size: var(--step--1); color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 0.18em; }
+
+/* Library toolbar */
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; }
+.search { position: relative; flex: 1 1 260px; max-width: 380px; }
+.search .ic { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+input[type="search"] {
+  width: 100%; min-height: 40px; padding: 0 12px 0 36px;
+  border: 1px solid var(--control); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink); font: inherit;
+}
+input[type="search"]::placeholder { color: var(--muted); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.filters button {
+  min-height: 36px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--control); border-radius: 999px; background: var(--surface); color: var(--ink);
+  font: inherit; font-size: var(--step--1); cursor: pointer;
+}
+.filters button .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.filters button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.filters button[aria-pressed="true"] .n { color: inherit; }
+.count { color: var(--muted); font-size: var(--step--1); margin-top: -12px; }
+
+/* Library table */
+.table-wrap { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow-x: auto; }
+.lib { width: 100%; border-collapse: collapse; }
+.lib th, .lib td { text-align: left; vertical-align: middle; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+.lib tbody tr:last-child td { border-bottom: 0; }
+.lib th { font-size: var(--step--1); font-weight: 600; color: var(--muted); white-space: nowrap; }
+.lib th.num-col, .lib td.c-size { text-align: right; }
+.lib tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.c-title a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.c-title a:hover { color: var(--accent); text-decoration: underline; }
+.c-title .file { display: block; color: var(--muted); font-size: var(--step--1); overflow-wrap: anywhere; }
+.c-type { white-space: nowrap; }
+.c-type .ic, .meta .ic { color: var(--muted); margin-right: 6px; }
+.c-date { color: var(--muted); white-space: nowrap; }
+
+/* Empty states */
+.empty {
+  display: grid; gap: 12px; justify-items: start;
+  padding: 40px 32px; background: var(--surface);
+  border: 1px dashed var(--control); border-radius: 8px;
+}
+.empty .ic-big { width: 48px; height: 40px; color: var(--muted); }
+.empty p { color: var(--muted); max-width: 40em; }
+
+/* Detail */
+.detail-head { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 20px; color: var(--muted); font-size: var(--step--1); }
+.meta > span { display: inline-flex; align-items: center; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.alert {
+  padding: 12px 16px; border-radius: var(--radius);
+  background: var(--fail-wash); color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--fail) 45%, var(--surface));
+  border-left: 4px solid var(--fail);
+}
+.alert strong { color: var(--fail); }
+.passline { color: var(--muted); }
+.detail-path { font-size: var(--step--1); color: var(--muted); overflow-wrap: anywhere; }
+.detail-path .sample-tag { margin-left: 8px; font-family: var(--font-body); }
+.block { display: grid; gap: 12px; min-width: 0; padding: 20px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+.block-head { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; justify-content: space-between; }
+.log {
+  margin: 0; padding: 12px 14px;
+  font: var(--step--1)/1.65 var(--font-mono);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--paper); border-radius: 4px; color: var(--muted);
+  transition: opacity 0.2s ease;
+}
+.log .l-ok { color: var(--ink); }
+.log .l-bad { color: var(--fail); font-weight: 600; }
+.log .l-warn { color: var(--ink); }
+.log.is-running { opacity: 0.45; }
+
+/* Contact sheet of the four renders, at true relative width */
+.sheet { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 20px 32px; }
+.strip { display: flex; gap: 14px; align-items: flex-start; }
+.shot { flex: var(--w) 1 0%; min-width: 0; margin: 0; display: grid; gap: 6px; }
+.frame {
+  position: relative; overflow: hidden; outline-offset: 2px;
+  aspect-ratio: var(--w) / 900;
+  border-radius: 3px;
+  background: var(--shot-bg);
+  border: 1px solid var(--shot-edge);
+}
+.shot.light { --shot-bg: #fbfcfc; --shot-edge: #c9d1d6; --shot-bar: #dfe4e7; --shot-label: #4a545b; }
+.shot.dark  { --shot-bg: #1b2024; --shot-edge: #3a434a; --shot-bar: #343c42; --shot-label: #b4bec5; }
+.frame.has-issue { outline: 2px solid var(--fail); }
+.sk { position: absolute; inset: 0 0 34px; overflow: hidden; display: grid; align-content: start; gap: 8px; padding: 14px 10%; }
+.shot.wide .sk { padding: 10px 24%; }
+.sk i { display: block; height: 5px; border-radius: 2px; background: var(--shot-bar); }
+.sk i:nth-child(1) { height: 9px; width: 62%; }
+.sk i:nth-child(2) { width: 92%; }
+.sk i:nth-child(3) { width: 80%; }
+.sk i:nth-child(4) { height: 32px; width: 100%; }
+.sk i:nth-child(5) { width: 86%; }
+.sk i:nth-child(6) { width: 70%; }
+.sk i:nth-child(7) { width: 90%; }
+.sk i:nth-child(8) { height: 44px; width: 100%; }
+.sk i:nth-child(9) { width: 76%; }
+.sk i:nth-child(10) { width: 84%; }
+.ph {
+  position: absolute; left: 6px; bottom: 6px;
+  padding: 1px 6px; font-size: 12px; line-height: 1.6; white-space: nowrap;
+  color: var(--shot-label); background: var(--shot-bg); border: 1px dashed var(--shot-label); border-radius: 3px;
+}
+.shot figcaption { display: grid; font-size: var(--step--1); line-height: 1.45; }
+.shot figcaption .mono { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.shot figcaption .bad { font-size: 12px; }
+
+/* Send flow */
+.steps { list-style: none; counter-reset: step; display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; padding: 0; font-size: var(--step--1); color: var(--muted); }
+.steps li { counter-increment: step; display: inline-flex; align-items: center; gap: 8px; }
+.steps li::before {
+  content: counter(step); display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 1px solid var(--control); font-variant-numeric: tabular-nums; line-height: 1;
+}
+.steps li.done::before { content: "✓"; }
+.steps li[aria-current="step"] { color: var(--ink); font-weight: 600; }
+.steps li[aria-current="step"]::before { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 12px; }
+legend { padding: 0; font-weight: 600; font-size: var(--step-1); margin-bottom: 4px; }
+.pick-list, .file-list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+.pick-list li + li, .file-list li + li { border-top: 1px solid var(--rule); }
+.pick { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 12px 16px; cursor: pointer; }
+.pick:hover { background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.pick:has(input:checked) { background: var(--accent-wash); }
+input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.pick-main { display: grid; min-width: 0; }
+.pick-main .t { font-weight: 600; }
+.pick-main .file, .file-list .file { color: var(--muted); font-size: var(--step--1); overflow-wrap: anywhere; }
+.pick-main .bad { font-size: var(--step--1); }
+.file-list li { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 10px 16px; }
+.file-list .file { color: var(--ink); flex: 1 1 14em; min-width: 0; }
+.file-list .num { color: var(--muted); font-size: var(--step--1); }
+.file-list .bad { font-size: var(--step--1); }
+.check-item {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start;
+  padding: 16px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; cursor: pointer;
+}
+.check-item input { margin-top: 5px; }
+.check-item:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); }
+.check-item .desc { display: block; color: var(--muted); font-size: var(--step--1); }
+.field-error { color: var(--fail); font-weight: 600; }
+.field-error:empty { display: none; }
+.bar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; padding-top: 16px; border-top: 1px solid var(--rule); }
+.bar .sum { color: var(--muted); }
+.bar .row { margin-left: auto; }
+.result {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: start;
+  padding: 24px; background: var(--surface); border: 1px solid var(--rule); border-left: 4px solid var(--accent); border-radius: 8px;
+}
+.result .ic-file { width: 40px; height: 50px; color: var(--accent); }
+.result-label { color: var(--muted); font-size: var(--step--1); }
+.fname { font-size: var(--step-1); font-weight: 600; overflow-wrap: anywhere; line-height: 1.4; }
+
+/* Sample-data note and prototype panel: outside the product */
+.sample-note { max-width: 76rem; margin: 0 auto; padding: 0 var(--gutter) 48px; color: var(--muted); font-size: var(--step--1); }
+/* Prototype panel: a strip above the product, in normal flow, so it never covers the screens it controls. */
+.proto { background: var(--ink); color: var(--paper); font-size: var(--step--1); line-height: 1.6; }
+.proto summary { padding: 4px var(--gutter); cursor: pointer; font-weight: 600; }
+.proto summary:focus-visible, .proto a:focus-visible, .proto button:focus-visible, .proto input:focus-visible { outline-color: var(--paper); }
+.proto-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px 32px; padding: 4px var(--gutter) 16px; }
+.proto-body > div { display: grid; gap: 4px; align-content: start; }
+.proto-body ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.proto a { color: var(--paper); }
+.proto-h { font-weight: 600; opacity: 0.75; }
+.proto label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.proto button { justify-self: start; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; padding: 2px 10px; border-radius: 4px; cursor: pointer; }
+.toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 30;
+  max-width: min(480px, calc(100vw - 32px)); width: max-content;
+  padding: 10px 16px; border-radius: var(--radius);
+  background: var(--ink); color: var(--paper); font-size: var(--step--1);
+  opacity: 0; transform: translate(-50%, 8px); pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 640px) {
+  main { padding-top: 20px; }
+  h1 { font-size: var(--step-2); }
+  .search { max-width: none; }
+  .count { margin-top: -8px; }
+  .lib thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .lib, .lib tbody, .lib tr, .lib td { display: block; }
+  .lib tr { display: grid; grid-template-columns: auto auto 1fr auto; gap: 2px 14px; align-items: baseline; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+  .lib tbody tr:last-child { border-bottom: 0; }
+  .lib td { padding: 0; border: 0; font-size: var(--step--1); }
+  .lib td.c-title { grid-column: 1 / -1; font-size: var(--step-0); margin-bottom: 4px; }
+  .lib td.c-size { text-align: left; }
+  .lib td.c-check { grid-column: 4; grid-row: 2; }
+  .lib td.c-date { grid-column: 3; grid-row: 2; }
+  .project .mono { display: none; }
+  .shot figcaption .mono { display: none; }
+  .actions { width: 100%; }
+  .actions .btn { flex: 1 1 0; padding: 0 8px; }
+  .block { padding: 16px; }
+  .strip { gap: 10px; }
+  .empty { padding: 28px 20px; }
+  .result { grid-template-columns: minmax(0, 1fr); padding: 20px; }
+  .bar .row { margin-left: 0; width: 100%; }
+  .bar .row .btn { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+@media print {
+  body { background: #fff; color: #000; }
+  .proto, .toast { display: none; }
+}
+</style>
+</head>
+<body>
+<svg class="sr-only" aria-hidden="true" focusable="false">
+  <symbol id="i-stack" viewBox="0 0 24 24"><path d="M8 3h11v14H8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 6v15h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 8h5M11 11h5M11 14h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-explain" viewBox="0 0 16 16"><path d="M3 4h10M3 8h10M3 12h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-track" viewBox="0 0 16 16"><path d="M2.5 3h3v10h-3zM6.5 3h3v6h-3zM10.5 3h3v8h-3z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="i-prototype" viewBox="0 0 16 16"><path d="M4 2.5l8.5 6.2-3.9.9 2.1 3.9-1.7.9-2.1-3.9L4 13z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="i-slides" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 11v3M5.5 14h5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 48 40"><path d="M3 7a3 3 0 0 1 3-3h11l4 5h21a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="i-file" viewBox="0 0 32 40"><path d="M4 2h16l8 8v28H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M20 2v8h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20l-3 4 3 4M22 20l3 4-3 4M17.5 18l-3 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-zip" viewBox="0 0 32 40"><path d="M4 2h16l8 8v28H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M20 2v8h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 4h3M14 8h3M14 12h3M14 16h3M14 20h3" stroke="currentColor" stroke-width="2"/><rect x="12.5" y="23" width="6" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+</svg>
+
+<details class="proto">
+  <summary>原型面板：跳到各个屏幕和状态</summary>
+  <div class="proto-body">
+    <div>
+      <p>这一条不属于产品界面，只用来审阅原型。页面里的数据都是示例。</p>
+      <button type="button" data-act="reset">重置原型</button>
+    </div>
+    <div>
+      <p class="proto-h">屏幕</p>
+      <ul>
+        <li><a href="#library">页面库</a></li>
+        <li><a href="#detail?id=checkout">页面详情：检查通过</a></li>
+        <li><a href="#detail?id=cache">页面详情：检查未通过</a></li>
+        <li><a href="#send">发送 1：选择页面</a></li>
+        <li><a href="#send-confirm?pick=checkout,cache">发送 2：隐私检查</a></li>
+        <li><a href="#send-done?pick=checkout">发送 3：单个文件</a></li>
+        <li><a href="#send-done?pick=checkout,q3-progress,onboarding">发送 3：zip</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="proto-h">状态</p>
+      <label><input type="checkbox" id="toggle-empty"> 空页面库</label>
+      <ul>
+        <li><a href="#library?q=发票">搜索无结果</a></li>
+      </ul>
+    </div>
+  </div>
+</details>
+
+<header class="appbar">
+  <a class="brand" href="#library"><svg class="ic" aria-hidden="true"><use href="#i-stack"></use></svg><span>页面库</span></a>
+  <p class="project"><span class="mono">demo-shop/html</span><span class="sample-tag">示例数据</span></p>
+  <a class="btn" id="nav-send" href="#send">发送页面</a>
+</header>
+
+<main>
+  <section data-screen id="library" data-title="页面库">
+    <div class="screen-head">
+      <h1>页面库</h1>
+      <p class="lead" id="lib-lead"></p>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <div class="search">
+        <label class="sr-only" for="q">按标题搜索</label>
+        <svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg>
+        <input id="q" type="search" placeholder="按标题搜索" autocomplete="off" enterkeyhint="search">
+      </div>
+      <div class="filters" id="filters" role="group" aria-label="按类型筛选">
+        <button type="button" data-act="filter" data-filter="all" aria-pressed="true">全部<span class="n"></span></button>
+        <button type="button" data-act="filter" data-filter="explain" aria-pressed="false">解释页<span class="n"></span></button>
+        <button type="button" data-act="filter" data-filter="track" aria-pressed="false">进度看板<span class="n"></span></button>
+        <button type="button" data-act="filter" data-filter="prototype" aria-pressed="false">原型<span class="n"></span></button>
+        <button type="button" data-act="filter" data-filter="slides" aria-pressed="false">幻灯片<span class="n"></span></button>
+      </div>
+    </div>
+    <p class="count" id="lib-count" aria-live="polite"></p>
+    <div id="lib-body"></div>
+  </section>
+
+  <section data-screen id="detail" data-title="页面详情" hidden>
+    <div id="detail-body" class="stack"></div>
+  </section>
+
+  <section data-screen id="send" data-title="发送：选择页面" hidden>
+    <a class="back" href="#library">返回页面库</a>
+    <div class="screen-head">
+      <h1>发送页面</h1>
+      <p class="lead">选好页面，确认没有内部信息，再拿到要发出去的文件。</p>
+    </div>
+    <ol class="steps" aria-label="发送步骤">
+      <li aria-current="step">选择页面</li>
+      <li>隐私检查</li>
+      <li>发送文件</li>
+    </ol>
+    <div id="send-body"></div>
+  </section>
+
+  <section data-screen id="send-confirm" data-title="发送：隐私检查" hidden>
+    <a class="back" href="#send">返回选择</a>
+    <div class="screen-head">
+      <h1>发送前检查</h1>
+      <p class="lead">文件发出去就收不回来。先确认里面没有不该给对方看的东西。</p>
+    </div>
+    <ol class="steps" aria-label="发送步骤">
+      <li class="done">选择页面</li>
+      <li aria-current="step">隐私检查</li>
+      <li>发送文件</li>
+    </ol>
+    <div id="confirm-body" class="stack"></div>
+  </section>
+
+  <section data-screen id="send-done" data-title="发送：文件已就绪" hidden>
+    <div class="screen-head">
+      <h1>文件已就绪</h1>
+    </div>
+    <ol class="steps" aria-label="发送步骤">
+      <li class="done">选择页面</li>
+      <li class="done">隐私检查</li>
+      <li aria-current="step">发送文件</li>
+    </ol>
+    <div id="done-body" class="stack"></div>
+  </section>
+</main>
+
+<footer class="sample-note">
+  <p>这是“页面库”的可点击原型。项目名、页面列表、文件大小、日期、路径和检查输出都是示例数据，不来自真实项目；“打开”“在文件夹中显示”等操作只会给出提示，不会动你的文件。</p>
+</footer>
+
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="sample-data">
+{
+  "note": "示例数据：项目名、页面、大小、日期、路径和检查输出都是为原型编写的。",
+  "project": "demo-shop",
+  "root": "~/projects/demo-shop/html",
+  "chrome": "Chrome/154.0.8037.97",
+  "pages": [
+    { "id": "checkout", "title": "结账流程原型", "file": "checkout-prototype.html", "type": "prototype", "kb": 86, "updated": "2026-10-05", "checked": "2026-10-05T16:42", "result": "pass", "links": 0 },
+    { "id": "q3-progress", "title": "三季度进度", "file": "q3-progress.html", "type": "track", "kb": 41, "updated": "2026-10-04", "checked": "2026-10-04T11:08", "result": "pass", "links": 3 },
+    { "id": "cache", "title": "缓存失效原理", "file": "cache-invalidation.html", "type": "explain", "kb": 23, "updated": "2026-10-03", "checked": "2026-10-03T19:25", "result": "fail", "links": 0,
+      "lines": [
+        "✗ L7 <link href>: loads 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap' from the network",
+        "· rendered offline with Chrome/154.0.8037.97 (DNS blocked)",
+        "✗ requested https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap [every render]",
+        "✗ page scrolls sideways (712px > 400px); widest: pre.diagram, svg [page-400-light, page-400-dark]"
+      ],
+      "shotIssues": { "page-400-light": ["外部请求", "横向滚动"], "page-400-dark": ["外部请求", "横向滚动"], "page-1280-light": ["外部请求"], "page-1280-dark": ["外部请求"] } },
+    { "id": "onboarding", "title": "新人入职分享", "file": "onboarding-deck.html", "type": "slides", "kb": 312, "updated": "2026-09-29", "checked": "2026-09-29T15:03", "result": "pass", "links": 5 },
+    { "id": "payment", "title": "支付报错排查", "file": "payment-errors-review.html", "type": "explain", "kb": 37, "updated": "2026-09-26", "checked": "2026-09-26T09:47", "result": "pass", "links": 2 },
+    { "id": "settings", "title": "设置页线框图", "file": "settings-wireframe.html", "type": "prototype", "kb": 52, "updated": "2026-09-22", "checked": "2026-09-22T17:20", "result": "pass", "links": 0 },
+    { "id": "migration", "title": "数据迁移看板", "file": "migration-tracker.html", "type": "track", "kb": 248, "updated": "2026-09-19", "checked": "2026-09-19T10:31", "result": "fail", "links": 1,
+      "lines": [
+        "· 1 outbound link(s); they need a network only when clicked",
+        "✓ static: nothing loads from outside the file",
+        "· rendered offline with Chrome/154.0.8037.97 (DNS blocked)",
+        "✗ JS exception: TypeError: Cannot read properties of null (reading 'getContext') [every render]"
+      ],
+      "shotIssues": { "page-400-light": ["JS 报错"], "page-400-dark": ["JS 报错"], "page-1280-light": ["JS 报错"], "page-1280-dark": ["JS 报错"] } },
+    { "id": "q3-review", "title": "三季度复盘", "file": "q3-review-deck.html", "type": "slides", "kb": 274, "updated": "2026-09-15", "checked": "2026-09-15T14:12", "result": "pass", "links": 4 }
+  ]
+}
+</script>
+<script>
+(() => {
+  "use strict";
+  const DATA = JSON.parse(document.getElementById("sample-data").textContent);
+  const TYPES = { explain: "解释页", track: "进度看板", prototype: "原型", slides: "幻灯片" };
+  const SCHEMES = { light: "浅色", dark: "深色" };
+  const noPrivacy = () => ({ paths: false, data: false });
+  const fresh = () => ({
+    empty: false, filter: "all", query: "", selected: DATA.pages[0].id,
+    pick: new Set(), privacy: noPrivacy(), checking: null, checkedNow: new Set()
+  });
+  let state = fresh();
+
+  const $ = (sel) => document.querySelector(sel);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const nf = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
+  const size = (kb) => (kb >= 1024 ? `${nf.format(kb / 1024)}\u00a0MB` : `${nf.format(kb)}\u00a0KB`);
+  const dayFmt = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric" });
+  const fullFmt = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", day: "numeric" });
+  const timeFmt = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const isoDay = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" });
+  const asDate = (iso) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+  const icon = (name, cls = "ic") => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+
+  const pages = () => (state.empty ? [] : DATA.pages);
+  const find = (id) => pages().find((p) => p.id === id);
+  const failed = (p) => p.result === "fail";
+  const picked = () => pages().filter((p) => state.pick.has(p.id));
+  const problemCount = (p) => (p.lines || []).filter((l) => l.startsWith("✗")).length;
+  const total = (list) => list.reduce((sum, p) => sum + p.kb, 0);
+
+  /* ---------- Library ---------- */
+  function renderLibrary() {
+    const all = pages();
+    const q = state.query.trim();
+    const shown = all.filter((p) => (state.filter === "all" || p.type === state.filter) && (!q || p.title.toLowerCase().includes(q.toLowerCase())));
+    $("#lib-lead").textContent = all.length
+      ? `demo-shop 项目 html/ 文件夹里的 ${all.length} 个页面。`
+      : "demo-shop 项目的 html/ 文件夹。";
+    for (const b of document.querySelectorAll("#filters button")) {
+      const key = b.dataset.filter;
+      b.setAttribute("aria-pressed", String(state.filter === key));
+      b.querySelector(".n").textContent = key === "all" ? all.length : all.filter((p) => p.type === key).length;
+    }
+    const input = $("#q");
+    if (input.value !== state.query) input.value = state.query;
+    $("#toolbar").hidden = !all.length;
+    const body = $("#lib-body");
+    const count = $("#lib-count");
+
+    if (!all.length) {
+      count.textContent = "";
+      body.innerHTML = `
+        <div class="empty">
+          ${icon("folder", "ic-big")}
+          <h2>html/ 文件夹里还没有页面</h2>
+          <p>让 Claude 用 awesome-html 做一个页面，存到项目的 html/ 文件夹，它就会出现在这里。</p>
+          <button type="button" class="btn" data-act="rescan">重新扫描文件夹</button>
+        </div>`;
+      return;
+    }
+    if (!shown.length) {
+      const where = state.filter === "all" ? "" : `在“${TYPES[state.filter]}”里`;
+      count.textContent = "没有匹配的页面";
+      body.innerHTML = q
+        ? `<div class="empty">
+             <h2>${where}没有标题包含“${esc(q)}”的页面</h2>
+             <p>换个关键词试试。搜索只匹配标题，不匹配文件名和页面内容。</p>
+             <div class="row">
+               <button type="button" class="btn" data-act="clear-search">清除搜索</button>
+               ${state.filter === "all" ? "" : `<button type="button" class="btn" data-act="clear-all">清除搜索和筛选</button>`}
+             </div>
+           </div>`
+        : `<div class="empty">
+             <h2>还没有${TYPES[state.filter]}</h2>
+             <p>这个类型下没有页面。</p>
+             <button type="button" class="btn" data-act="clear-all">显示全部类型</button>
+           </div>`;
+      return;
+    }
+    const nFail = all.filter(failed).length;
+    count.textContent = shown.length === all.length
+      ? `${all.length} 个页面${nFail ? `，其中 ${nFail} 个检查未通过` : ""}`
+      : `显示 ${shown.length} 个，共 ${all.length} 个页面`;
+    body.innerHTML = `
+      <div class="table-wrap">
+        <table class="lib">
+          <caption class="sr-only">页面列表（示例数据）</caption>
+          <thead><tr><th scope="col">标题</th><th scope="col">类型</th><th scope="col" class="num-col">大小</th><th scope="col">上次检查</th><th scope="col">更新</th></tr></thead>
+          <tbody>${shown.map((p) => `
+            <tr>
+              <td class="c-title"><a href="#detail?id=${p.id}">${esc(p.title)}</a><span class="file">${esc(p.file)}</span></td>
+              <td class="c-type">${icon(p.type)}${TYPES[p.type]}</td>
+              <td class="c-size num">${size(p.kb)}</td>
+              <td class="c-check">${failed(p) ? `<span class="bad">✗ 未通过</span>` : `<span class="ok">✓ 通过</span>`}</td>
+              <td class="c-date"><time datetime="${p.updated}">${dayFmt.format(asDate(p.updated))}</time></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  /* ---------- Detail ---------- */
+  function logLines(p) {
+    const body = p.lines || [
+      ...(p.links ? [`· ${p.links} outbound link(s); they need a network only when clicked`] : []),
+      "✓ static: nothing loads from outside the file",
+      `· rendered offline with ${DATA.chrome} (DNS blocked)`,
+      "✓ browser: no outside requests, no JS errors, no sideways scroll"
+    ];
+    const lines = [`${DATA.root}/${p.file} (${p.kb} KB)`, ...body, "· look at every screenshot before calling the page done"];
+    const kind = { "✓": "l-ok", "✗": "l-bad", "!": "l-warn", "·": "l-info" };
+    return lines.map((l) => `<span class="${kind[l[0]] || "l-head"}">${esc(l)}</span>`).join("\n");
+  }
+
+  function shot(p, width, scheme) {
+    const label = `page-${width}-${scheme}`;
+    const issues = (p.shotIssues || {})[label];
+    const name = `${width}px ${SCHEMES[scheme]}`;
+    return `
+      <figure class="shot ${scheme}${width > 400 ? " wide" : ""}" style="--w: ${width}">
+        <div class="frame${issues ? " has-issue" : ""}" role="img" aria-label="截图占位：${width} 像素宽，${SCHEMES[scheme]}${issues ? `，问题：${issues.join("、")}` : ""}">
+          <div class="sk"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <span class="ph">截图占位</span>
+        </div>
+        <figcaption><span>${name}</span><span class="mono">${label}</span>${(issues || []).map((i) => `<span class="bad">✗ ${i}</span>`).join("")}</figcaption>
+      </figure>`;
+  }
+
+  function renderDetail() {
+    const body = $("#detail-body");
+    const p = find(state.selected);
+    if (!p) {
+      body.innerHTML = `
+        <a class="back" href="#library">返回页面库</a>
+        <div class="empty">
+          <h1>找不到这个页面</h1>
+          <p>它可能已从 html/ 文件夹删除或改名。回到页面库重新选一个。</p>
+          <a class="btn" href="#library">回到页面库</a>
+        </div>`;
+      return;
+    }
+    const checking = state.checking === p.id;
+    const n = problemCount(p);
+    const checkedText = state.checkedNow.has(p.id) ? "刚刚" : timeFmt.format(asDate(p.checked));
+    body.innerHTML = `
+      <a class="back" href="#library">返回页面库</a>
+      <div class="detail-head">
+        <div class="stack-s">
+          <h1>${esc(p.title)}</h1>
+          <p class="meta">
+            <span>${icon(p.type)}${TYPES[p.type]}</span>
+            <span class="num">${size(p.kb)}</span>
+            <span>更新于&nbsp;<time datetime="${p.updated}">${fullFmt.format(asDate(p.updated))}</time></span>
+          </p>
+          <p class="detail-path"><span class="sr-only">文件路径：</span>${esc(DATA.root)}/<wbr>${esc(p.file)}<span class="sample-tag">示例路径</span></p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn primary" data-act="open">打开</button>
+          <button type="button" class="btn" data-act="recheck"${checking ? " disabled" : ""}>${checking ? "检查中…" : "重新检查"}</button>
+          <button type="button" class="btn" data-act="send-one">发送</button>
+        </div>
+      </div>
+      ${failed(p)
+        ? `<p class="alert"><strong>✗ 检查未通过，有 ${n} 项问题。</strong>修复页面后点“重新检查”。在问题修好之前，对方打开时可能显示不正常。</p>`
+        : `<p class="passline">✓ 上次检查通过，可以直接发送。</p>`}
+      <section class="block" aria-labelledby="h-check">
+        <div class="block-head">
+          <h2 id="h-check">检查结果</h2>
+          <p class="hint">上次检查：${checking ? "正在检查…" : checkedText}</p>
+        </div>
+        <pre class="log${checking ? " is-running" : ""}" aria-busy="${checking}">${logLines(p)}</pre>
+        <p class="hint">示例输出，格式与 check.py 一致；省略了截图路径那几行，截图见下一节。</p>
+      </section>
+      <section class="block" aria-labelledby="h-shots">
+        <h2 id="h-shots">截图</h2>
+        <p class="hint">check.py 在 400 和 1280 像素宽、浅色和深色下各渲染一张。这里是占位框，按真实宽度比例排列${failed(p) ? "；红框是出问题的那几张" : ""}。</p>
+        <div class="sheet">
+          <div class="strip">${shot(p, 400, "light")}${shot(p, 1280, "light")}</div>
+          <div class="strip">${shot(p, 400, "dark")}${shot(p, 1280, "dark")}</div>
+        </div>
+      </section>`;
+  }
+
+  function recheck() {
+    const p = find(state.selected);
+    if (!p || state.checking) return;
+    state.checking = p.id;
+    renderDetail();
+    setTimeout(() => {
+      state.checking = null;
+      state.checkedNow.add(p.id);
+      if (current.id === "detail" && state.selected === p.id) {
+        renderDetail();
+        $('[data-act="recheck"]').focus();
+      }
+      toast(failed(p)
+        ? `重新检查完成：${p.title} 仍有 ${problemCount(p)} 项未通过。修复页面后再检查。`
+        : `重新检查完成：${p.title} 全部通过。`);
+    }, 1200);
+  }
+
+  /* ---------- Send flow ---------- */
+  const noPages = (title, text, href, label) => `
+    <div class="empty">
+      <h2>${title}</h2>
+      <p>${text}</p>
+      <a class="btn" href="${href}">${label}</a>
+    </div>`;
+
+  function pickSummary() {
+    const sel = picked();
+    if (!sel.length) return "还没有选择页面。";
+    if (sel.length === 1) return `已选 1 个页面，${size(sel[0].kb)}。会直接发送这个 HTML 文件。`;
+    return `已选 ${sel.length} 个页面，共 ${size(total(sel))}。会打包成一个 zip。`;
+  }
+
+  function renderSend() {
+    const all = pages();
+    const body = $("#send-body");
+    if (!all.length) {
+      body.innerHTML = noPages("没有可发送的页面", "页面库是空的。先在 html/ 文件夹里生成页面。", "#library", "回到页面库");
+      return;
+    }
+    body.innerHTML = `
+      <form id="pick-form" class="stack" novalidate>
+        <fieldset>
+          <legend>选择要发送的页面</legend>
+          <div class="row">
+            <button type="button" class="link-btn" data-act="pick-all">全选</button>
+            <button type="button" class="link-btn" data-act="pick-none">全不选</button>
+          </div>
+          <ul class="pick-list">${all.map((p) => `
+            <li><label class="pick">
+              <input type="checkbox" name="pick" value="${p.id}"${state.pick.has(p.id) ? " checked" : ""}>
+              <span class="pick-main">
+                <span class="t">${esc(p.title)}</span>
+                <span class="file">${esc(p.file)}</span>
+                ${failed(p) ? `<span class="bad">✗ 检查未通过</span>` : ""}
+              </span>
+              <span class="num">${size(p.kb)}</span>
+            </label></li>`).join("")}
+          </ul>
+        </fieldset>
+        <p class="field-error" id="pick-error" aria-live="polite"></p>
+        <div class="bar">
+          <p class="sum" id="pick-sum" aria-live="polite">${pickSummary()}</p>
+          <div class="row">
+            <a class="btn" href="#library">取消</a>
+            <button type="submit" class="btn primary">下一步：隐私检查</button>
+          </div>
+        </div>
+      </form>`;
+  }
+
+  function renderConfirm() {
+    const sel = picked();
+    const body = $("#confirm-body");
+    if (!sel.length) {
+      body.innerHTML = noPages("还没有选择页面", "先选好要发送的页面，再做隐私检查。", "#send", "回到第 1 步");
+      return;
+    }
+    const bad = sel.filter(failed);
+    body.innerHTML = `
+      <section class="stack-s" aria-labelledby="h-sending">
+        <h2 id="h-sending">要发送的 ${sel.length} 个页面</h2>
+        <ul class="file-list">${sel.map((p) => `
+          <li><span class="file">${esc(p.file)}</span><span class="num">${size(p.kb)}</span>${failed(p) ? `<span class="bad">✗ 检查未通过</span>` : ""}</li>`).join("")}
+        </ul>
+        <p class="hint">${sel.length === 1 ? "单个文件，直接发送。" : `${sel.length} 个文件会打包成一个 zip，共 ${size(total(sel))}（压缩前）。`}</p>
+        ${bad.length ? `<p class="alert"><strong>✗ 其中 ${bad.length} 个页面检查未通过。</strong>对方打开时可能显示不正常。可以先去<a href="#detail?id=${bad[0].id}">修复${esc(bad[0].title)}</a>，也可以照样发送。</p>` : ""}
+      </section>
+      <form id="confirm-form" class="stack" novalidate>
+        <fieldset>
+          <legend>逐项确认</legend>
+          <p class="hint">页面库不会替你判断这两项。打开页面源码，搜索 /Users/、192.168.、@ 和 token，能找到大部分问题。</p>
+          <label class="check-item">
+            <input type="checkbox" name="paths"${state.privacy.paths ? " checked" : ""}>
+            <span><strong>没有内部路径</strong><span class="desc">页面里没有本机路径（如 /Users/…、C:\\Users\\…）、内网地址或公司内部链接。</span></span>
+          </label>
+          <label class="check-item">
+            <input type="checkbox" name="data"${state.privacy.data ? " checked" : ""}>
+            <span><strong>没有私人数据</strong><span class="desc">没有姓名、邮箱、电话、密钥或令牌，也没有不该给对方看的客户和业务数据。</span></span>
+          </label>
+        </fieldset>
+        <p class="field-error" id="confirm-error" aria-live="polite"></p>
+        <div class="bar">
+          <a class="btn" href="#send">返回修改选择</a>
+          <button type="submit" class="btn primary">生成发送文件</button>
+        </div>
+      </form>`;
+  }
+
+  function renderDone() {
+    const sel = picked();
+    const body = $("#done-body");
+    if (!sel.length) {
+      body.innerHTML = noPages("还没有选择页面", "先选好要发送的页面。", "#send", "回到第 1 步");
+      return;
+    }
+    const single = sel.length === 1;
+    const zipName = `${DATA.project}-pages-${isoDay.format(new Date())}.zip`;
+    const bad = sel.filter(failed);
+    body.innerHTML = `
+      <div class="result">
+        ${icon(single ? "file" : "zip", "ic-file")}
+        <div class="stack-s">
+          <p class="result-label">${single ? "直接发送这个文件" : "发送这个 zip"}</p>
+          <p class="fname">${esc(single ? sel[0].file : zipName)}</p>
+          <p>${single
+            ? `${size(sel[0].kb)}，一个完整的 HTML 文件。对方双击就能打开，不需要网络，也不需要账号。`
+            : `包含 ${sel.length} 个 HTML 文件，压缩前共 ${size(total(sel))}。对方解压后双击任一文件就能打开。文件名只用英文和数字，避免对方解压时乱码。`}</p>
+          ${single ? "" : `<ul class="file-list">${sel.map((p) => `<li><span class="file">${esc(p.file)}</span><span class="num">${size(p.kb)}</span></li>`).join("")}</ul>`}
+          <p class="hint">位置：<span class="mono">${esc(single ? `${DATA.root}/${sel[0].file}` : `~/Downloads/${zipName}`)}</span>（示例路径）</p>
+        </div>
+      </div>
+      ${bad.length ? `<p class="alert"><strong>✗ 其中 ${bad.length} 个页面检查未通过。</strong>发出前可以先告诉对方，或修复后重新生成。</p>` : ""}
+      <p>页面库不会替你发出去。用平时的方式（邮件、聊天工具、网盘）把它交给对方。</p>
+      <div class="bar">
+        <button type="button" class="btn" data-act="reveal">在文件夹中显示</button>
+        <div class="row">
+          <a class="btn" href="#send">换一批页面</a>
+          <button type="button" class="btn primary" data-act="finish">完成</button>
+        </div>
+      </div>`;
+  }
+
+  /* ---------- Router ---------- */
+  const screens = [...document.querySelectorAll("[data-screen]")];
+  const renderers = { library: renderLibrary, detail: renderDetail, send: renderSend, "send-confirm": renderConfirm, "send-done": renderDone };
+  let current = screens[0];
+
+  function render() {
+    renderers[current.id]();
+    const h = current.querySelector("h1");
+    document.title = `${current.id === "detail" && h ? h.textContent : current.dataset.title} – 页面库原型`;
+    $("#toggle-empty").checked = state.empty;
+  }
+
+  // Hash format: #screen or #screen?key=value. Keys: id (detail), q, type, state=empty, pick=a,b.
+  function route() {
+    const raw = location.hash.slice(1);
+    const cut = raw.indexOf("?");
+    const id = decodeURIComponent(cut < 0 ? raw : raw.slice(0, cut));
+    const params = new URLSearchParams(cut < 0 ? "" : raw.slice(cut + 1));
+    if (params.get("state") === "empty") state.empty = true;
+    if (params.has("q")) state.query = params.get("q");
+    if (params.has("type") && (params.get("type") === "all" || params.get("type") in TYPES)) state.filter = params.get("type");
+    if (params.has("id")) state.selected = params.get("id");
+    if (params.has("pick")) { state.pick = new Set(params.get("pick").split(",").filter(Boolean)); state.privacy = noPrivacy(); }
+    current = screens.find((s) => s.id === id) || screens[0];
+    for (const s of screens) s.hidden = s !== current;
+    render();
+    const heading = current.querySelector("h1");
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+    scrollTo(0, 0);
+  }
+
+  function nav(hash) {
+    if (location.hash === `#${hash}`) route();
+    else location.hash = hash;
+  }
+
+  let toastTimer;
+  function toast(message) {
+    const t = $("#toast");
+    t.textContent = message;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 4500);
+  }
+
+  function setPick(ids) {
+    state.pick = new Set(ids);
+    state.privacy = noPrivacy();
+    for (const box of document.querySelectorAll('input[name="pick"]')) box.checked = state.pick.has(box.value);
+    $("#pick-sum").textContent = pickSummary();
+    if (state.pick.size) $("#pick-error").textContent = "";
+  }
+
+  const actions = {
+    filter: (el) => { state.filter = el.dataset.filter; renderLibrary(); },
+    "clear-search": () => { state.query = ""; renderLibrary(); $("#q").focus(); },
+    "clear-all": () => { state.query = ""; state.filter = "all"; renderLibrary(); $("#q").focus(); },
+    rescan: () => toast("扫描完成：html/ 文件夹里没有找到 .html 文件。（原型）"),
+    open: () => { const p = find(state.selected); if (p) toast(`原型不会打开文件。实际工具会用默认浏览器打开 ${p.file}。`); },
+    recheck: () => recheck(),
+    "send-one": () => { state.pick = new Set([state.selected]); state.privacy = noPrivacy(); nav("send"); },
+    "pick-all": () => setPick(pages().map((p) => p.id)),
+    "pick-none": () => setPick([]),
+    reveal: () => toast("原型不会打开文件夹。实际工具会在访达或资源管理器里选中这个文件。"),
+    finish: () => { state.pick = new Set(); state.privacy = noPrivacy(); nav("library"); },
+    reset: () => { state = fresh(); $("#q").value = ""; nav("library"); toast("原型已重置。"); }
+  };
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (link && new URL(link.href).hash === location.hash) { event.preventDefault(); route(); return; }
+    const control = event.target.closest("[data-act]");
+    if (control && actions[control.dataset.act]) actions[control.dataset.act](control);
+  });
+
+  document.addEventListener("change", (event) => {
+    const t = event.target;
+    if (t.name === "pick") {
+      if (t.checked) state.pick.add(t.value); else state.pick.delete(t.value);
+      state.privacy = noPrivacy();
+      $("#pick-sum").textContent = pickSummary();
+      if (state.pick.size) $("#pick-error").textContent = "";
+    } else if (t.name === "paths" || t.name === "data") {
+      state.privacy[t.name] = t.checked;
+      if (state.privacy.paths && state.privacy.data) $("#confirm-error").textContent = "";
+    } else if (t.id === "toggle-empty") {
+      state.empty = t.checked;
+      render();
+    }
+  });
+
+  document.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.target;
+    if (form.id === "pick-form") {
+      if (!picked().length) {
+        $("#pick-error").textContent = "至少选择一个页面才能继续。";
+        form.querySelector('input[name="pick"]').focus();
+        return;
+      }
+      nav("send-confirm");
+    } else if (form.id === "confirm-form") {
+      const missing = form.querySelector('input[type="checkbox"]:not(:checked)');
+      if (missing) {
+        $("#confirm-error").textContent = "两项都确认后才能生成文件。";
+        missing.focus();
+        return;
+      }
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = "正在生成…";
+      setTimeout(() => nav("send-done"), 700);
+    }
+  });
+
+  $("#q").addEventListener("input", (event) => { state.query = event.target.value; renderLibrary(); });
+  addEventListener("hashchange", route);
+  route();
+})();
+</script>
+</body>
+</html>

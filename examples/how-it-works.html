@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>awesome-html 工作原理</title>
+<style>
+/* Design plan. Subject: proving that one HTML file stands alone, with scripts that print ✓ ✗ ! · lines.
+   Follows the project's existing pages (examples/): cool neutrals tinted toward a teal "ships" accent,
+   red reserved for ✗ and never shown without the mark. Amber only for the ! mark.
+   Neighbor test: a page about "how our CI works" would get the same palette, so the changed axis is composition:
+   the page's status vocabulary is check.py's own four marks, used the same way in prose, tables and the real
+   terminal output, and every section ends with a mono "出处" line naming the files behind it.
+   Layout: answer up top; one reading column of about 40 Chinese characters; vertical diagrams sit beside their
+   explanation on wide screens and stack under it on phones. */
+:root {
+  --paper: #f3f6f6;        /* page background, grey tinted toward the accent */
+  --surface: #ffffff;      /* diagram nodes, tables, terminal */
+  --ink: #142022;          /* body text */
+  --muted: #536165;        /* captions, sources, secondary text */
+  --rule: #d5dfe0;         /* hairlines */
+  --accent: #0b6874;       /* the file that ships, links, ✓ */
+  --accent-wash: #e2eff0;  /* fill behind the key node and the verdict */
+  --fail: #b3261e;         /* ✗ only, always with the mark */
+  --warn: #8a5a00;         /* ! only, always with the mark */
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", monospace;
+  --step--1: 0.885rem;
+  --step-0: 1.0625rem;
+  --step-1: 1.275rem;
+  --step-2: 1.53rem;
+  --step-3: 1.836rem;
+  --measure: 40em;
+  --gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #101617;
+    --surface: #172022;
+    --ink: #e1e9ea;
+    --muted: #9aa9ac;
+    --rule: #29363a;
+    --accent: #63b9c4;
+    --accent-wash: #15302f;
+    --fail: #f0968b;
+    --warn: #e0b25c;
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--step-0)/1.6 var(--font-body);
+  padding: 48px var(--gutter) 72px;
+}
+html:lang(zh) body { line-height: 1.75; }
+.page { max-width: 64rem; margin-inline: auto; display: grid; gap: 64px; }
+.page > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.3; margin: 0; text-wrap: balance; }
+h1 { font-size: var(--step-3); }
+h2 { font-size: var(--step-2); }
+h3 { font-size: var(--step-1); }
+p, li, dd { max-width: var(--measure); text-wrap: pretty; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 1.4em; display: grid; gap: 8px; }
+.stack:not(table) { display: grid; gap: 16px; }   /* table.stack is the phone card layout, not this grid */
+.stack:not(table) > * { min-width: 0; }
+code.flag { white-space: nowrap; }
+.lead { font-size: var(--step-1); line-height: 1.7; max-width: 34em; }
+.note { color: var(--muted); font-size: var(--step--1); }
+a { color: var(--accent); text-underline-offset: 0.18em; }
+img, svg, video, canvas { max-width: 100%; height: auto; }
+figure { margin: 0; display: grid; gap: 8px; }
+figure > * { min-width: 0; }
+figcaption { color: var(--muted); font-size: var(--step--1); max-width: var(--measure); }
+.scroll-x { overflow-x: auto; }
+code, pre, kbd { font-family: var(--font-mono); font-size: 0.9em; }
+p code, li code, figcaption code, .src code { overflow-wrap: anywhere; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+.top { display: grid; gap: 16px; padding-bottom: 32px; border-bottom: 2px solid var(--ink); }
+
+/* Sections: point first, evidence after, sources last */
+section { display: grid; gap: 20px; }
+section > * { min-width: 0; }
+section h3 { margin-top: 12px; }
+.src { font: var(--step--1)/1.7 var(--font-mono); color: var(--muted); border-top: 1px solid var(--rule); padding-top: 10px; max-width: none; }
+.src b { font-family: var(--font-body); font-weight: 600; color: var(--ink); margin-right: 0.5em; }
+
+/* Prose beside a vertical diagram on wide screens */
+.split { display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.split > * { min-width: 0; }
+@media (min-width: 900px) { .split { grid-template-columns: minmax(0, 1fr) minmax(0, 26rem); gap: 48px; } }
+
+/* The four marks check.py prints; color only reinforces the glyph */
+.mk { font-family: var(--font-mono); font-weight: 700; }
+.mk.x { color: var(--fail); }
+.mk.w { color: var(--warn); }
+.mk.n { color: var(--muted); }
+.mk.ok { color: var(--accent); }
+
+/* Tables. 3+ columns become labeled blocks below 600px. */
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+thead th { border-bottom: 2px solid var(--ink); font-size: var(--step--1); }
+th { font-weight: 600; }
+td { overflow-wrap: break-word; }
+td code { overflow-wrap: break-word; }
+tbody th[scope="row"] { min-width: 7em; }
+@media (max-width: 600px) {
+  table.stack, table.stack tbody, table.stack tr, table.stack th, table.stack td { display: block; }
+  table.stack thead { display: none; }
+  table.stack tr { padding: 12px 0; border-bottom: 1px solid var(--rule); display: grid; gap: 6px; }
+  table.stack th, table.stack td { border: 0; padding: 0; min-width: 0; }
+  table.stack td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--step--1); }
+}
+
+/* Real terminal output: wrapped so nothing hides behind a scrollbar */
+.term { margin: 0; padding: 14px 16px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; font-size: var(--step--1); line-height: 1.65; }
+.term code { white-space: pre-wrap; overflow-wrap: anywhere; font-size: inherit; }
+.term .cmd { color: var(--muted); }
+
+@media (max-width: 600px) {
+  .page { gap: 48px; }
+  .term, .sample { font-size: 0.8125rem; line-height: 1.55; padding: 12px; }
+}
+
+/* Markdown source sample */
+.sample { margin: 0; padding: 14px 16px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; font-size: var(--step--1); line-height: 1.65; }
+.sample code { white-space: pre-wrap; overflow-wrap: anywhere; font-size: inherit; }
+
+/* Recommendation */
+.verdict { padding: 16px 20px; background: var(--accent-wash); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; max-width: 42em; }
+
+/* Diagrams: vertical, so one drawing serves every width */
+.diagram svg { display: block; width: 100%; max-width: 26rem; height: auto; color: var(--ink); font: 15px var(--font-body); }
+.diagram .node rect { fill: var(--surface); stroke: currentColor; stroke-width: 1.25; }
+.diagram .node.key rect { stroke: var(--accent); stroke-width: 2.5; fill: var(--accent-wash); }
+.diagram .node.fail rect { stroke: var(--fail); stroke-dasharray: 6 4; }
+.diagram .node.fail text { fill: var(--fail); }
+.diagram text { fill: currentColor; text-anchor: middle; dominant-baseline: middle; }
+.diagram .sub { fill: var(--muted); font-size: 14px; }
+.diagram .node.fail .sub { fill: var(--muted); }
+.diagram .mono { font-family: var(--font-mono); }
+.diagram .col { font-weight: 600; }
+.diagram .group { fill: none; stroke: var(--muted); stroke-width: 1.25; stroke-dasharray: 4 4; }
+.diagram .group-label { fill: var(--muted); font-size: 14px; }
+.diagram .edge { fill: none; stroke: currentColor; stroke-width: 1.25; }
+.diagram .edge.fail { stroke: var(--fail); stroke-dasharray: 6 4; }
+.diagram .arrowhead { fill: currentColor; }
+.diagram .arrowhead.fail { fill: var(--fail); }
+.diagram .edge-label { fill: var(--muted); font-size: 14px; paint-order: stroke; stroke: var(--paper); stroke-width: 5px; stroke-linejoin: round; }
+.diagram .edge-label.fail { fill: var(--fail); }
+
+.foot { color: var(--muted); font-size: var(--step--1); border-top: 1px solid var(--rule); padding-top: 16px; display: grid; gap: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+@media print {
+  body { background: #fff; color: #000; padding: 0; }
+  a { color: inherit; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <h1>awesome-html：页面发出去为什么还能打开</h1>
+    <p class="lead">因为交付前，页面已经被做成一个什么都不缺的文件，并且被检查过。页面契约规定它只能是一个 <code>.html</code>；<code>inline.py</code> 把它引用的本地文件写进去；<code>check.py</code> 先扫描标签里有没有向外的引用，再在断网的 Chrome 里用两种宽度、两种配色打开它，把每次渲染切成 1200px 高的截图交给 agent 逐块看。</p>
+    <p class="note">每节末尾列出处。<code>SKILL.md</code>、<code>scripts/</code>、<code>references/</code>、<code>assets/</code> 在 skill 目录 <code>plugins/<wbr>awesome-html/<wbr>skills/<wbr>awesome-html/</code> 下，其余文件在仓库根目录。终端输出是 2026-10-06 在本机实际运行的结果，演示文件在临时目录，命令和路径缩短成了 <code>scripts/…</code> 和 <code>demo/…</code>。</p>
+  </header>
+
+  <main class="page">
+    <section aria-labelledby="s-flow">
+      <h2 id="s-flow">两条进路，落到同一个文件</h2>
+      <div class="split">
+        <div class="stack">
+          <p>写页面时可以照常引用本地文件，比如 skill 自带的 Chart.js、一张图片、一个字体文件。进度看板不手写，由 <code>track.py</code> 从仓库里的 Markdown 文件生成。两条路最后都得到一个 <code>.html</code> 文件，再交给 <code>check.py</code>。有 ✗ 就改页面、从头再跑；没有 ✗、截图都看过，才把文件发出去。</p>
+          <p>SKILL.md 把这件事写成七步，agent 按顺序做：</p>
+          <ol>
+            <li>定需求：读者、页面类型、力度、精度。</li>
+            <li>找项目已有的设计语言，照着用。</li>
+            <li>先写 <code>:root</code> token，对照主题审一遍。</li>
+            <li>复制起始模板，替换占位内容。</li>
+            <li>有本地引用时，跑 <code>inline.py</code>。</li>
+            <li>跑 <code>check.py</code>，修 ✗，看每块截图。</li>
+            <li>交付：路径、内容、检查结果、没验证的部分。</li>
+          </ol>
+        </div>
+        <figure class="diagram">
+          <svg viewBox="0 0 416 568" role="img" aria-label="页面草稿交给 inline.py，Markdown 进度文件交给 track.py，两者都写出一个 .html 文件；文件交给 check.py 检查；没有 ✗ 且截图都看过就发出这个文件；有 ✗ 就回到页面草稿修改">
+            <defs>
+              <marker id="d1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" class="arrowhead"/>
+              </marker>
+              <marker id="d1-arrow-fail" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" class="arrowhead fail"/>
+              </marker>
+            </defs>
+            <g class="node"><rect x="24" y="8" width="184" height="64" rx="6"/><text x="116" y="32">页面草稿</text><text class="sub" x="116" y="54">可以引用本地文件</text></g>
+            <g class="node"><rect x="224" y="8" width="184" height="64" rx="6"/><text x="316" y="32">Markdown 进度文件</text><text class="sub mono" x="316" y="54">docs/wip/&lt;slug&gt;.md</text></g>
+            <g class="node"><rect x="24" y="120" width="184" height="64" rx="6"/><text class="mono" x="116" y="144">inline.py</text><text class="sub" x="116" y="166">把本地文件写进页面</text></g>
+            <g class="node"><rect x="224" y="120" width="184" height="64" rx="6"/><text class="mono" x="316" y="144">track.py</text><text class="sub" x="316" y="166">数据写进 #track-data</text></g>
+            <g class="node key"><rect x="116" y="248" width="184" height="64" rx="6"/><text x="208" y="272">一个 .html 文件</text><text class="sub" x="208" y="294">所有资源都在文件里</text></g>
+            <g class="node"><rect x="116" y="376" width="184" height="64" rx="6"/><text class="mono" x="208" y="400">check.py</text><text class="sub" x="208" y="422">静态扫描 + 断网渲染</text></g>
+            <g class="node"><rect x="116" y="496" width="184" height="64" rx="6"/><text x="208" y="520">发出这个文件</text><text class="sub" x="208" y="542">文件就是全部交付物</text></g>
+
+            <path class="edge" d="M116 72 V118" marker-end="url(#d1-arrow)"/>
+            <text class="edge-label" x="116" y="96">交给</text>
+            <path class="edge" d="M316 72 V118" marker-end="url(#d1-arrow)"/>
+            <text class="edge-label" x="316" y="96">读取</text>
+            <path class="edge" d="M116 184 V216 H164 V246" marker-end="url(#d1-arrow)"/>
+            <text class="edge-label" x="116" y="200">写出</text>
+            <path class="edge" d="M316 184 V216 H252 V246" marker-end="url(#d1-arrow)"/>
+            <text class="edge-label" x="316" y="200">生成或更新</text>
+            <path class="edge" d="M208 312 V374" marker-end="url(#d1-arrow)"/>
+            <text class="edge-label" x="208" y="344">检查</text>
+            <path class="edge" d="M208 440 V494" marker-end="url(#d1-arrow)"/>
+            <text class="edge-label" x="208" y="468">没有 ✗，截图都看过</text>
+            <path class="edge fail" d="M116 408 H12 V40 H22" marker-end="url(#d1-arrow-fail)"/>
+            <text class="edge-label fail" x="64" y="392">有 ✗ 就改</text>
+          </svg>
+          <figcaption>两条进路的终点相同：一个自带全部资源的文件。只有这个文件过了 <code>check.py</code>，才会被发出去。</figcaption>
+        </figure>
+      </div>
+      <p class="src"><b>出处</b>SKILL.md「Workflow」；README.md「How a page is made」；references/track.md「Source of truth」</p>
+    </section>
+
+    <section aria-labelledby="s-contract">
+      <h2 id="s-contract">页面契约：什么样的页面算“能发出去”</h2>
+      <p>契约写在 SKILL.md 的「Contract for every page」，每个页面都要满足这七条。离线、宽度和 <code>file://</code> 三条由 <code>check.py</code> 机械检查，缺 <code>&lt;title&gt;</code> 时它也会提醒；其余的靠 agent 在交付前对照 <code>references/checklist.md</code> 逐项核对、看截图。</p>
+      <table class="stack">
+        <thead><tr><th scope="col">规则</th><th scope="col">要求</th><th scope="col">谁来保证</th></tr></thead>
+        <tbody>
+          <tr>
+            <th scope="row">一个文件，全部在内</th>
+            <td data-label="要求">CSS 写在 <code>&lt;style&gt;</code>，JS 写在 <code>&lt;script&gt;</code>，图片和字体用 <code>data:</code> URI，图用内联 SVG。不用 CDN 脚本、web 字体、远程图片。向外的 <code>&lt;a&gt;</code> 链接可以。</td>
+            <td data-label="谁来保证"><code>inline.py</code> 写进来；<code>check.py</code> 静态扫描报 <span class="mk x">✗</span>，渲染时发出的请求也报 <span class="mk x">✗</span></td>
+          </tr>
+          <tr>
+            <th scope="row">位置</th>
+            <td data-label="要求">用户指定的路径；否则是项目根目录下的 <code>html/<wbr>&lt;slug&gt;.html</code>；在项目外或 <code>~/.claude</code> 这类配置目录里时，用 <code>~/awesome-html/<wbr>&lt;slug&gt;.html</code>。不主动提交生成的页面。</td>
+            <td data-label="谁来保证">agent 自己遵守，脚本不查</td>
+          </tr>
+          <tr>
+            <th scope="row">标题和语言</th>
+            <td data-label="要求"><code>&lt;title&gt;</code> 是短名称：两到四个英文词，或约 4 到 10 个汉字。<code>&lt;html lang&gt;</code> 和内容一致，中文用 <code>zh-CN</code>。</td>
+            <td data-label="谁来保证">缺 <code>&lt;title&gt;</code> 时 <code>check.py</code> 报 <span class="mk w">!</span>；<code>lang</code> 由 agent 对照清单检查</td>
+          </tr>
+          <tr>
+            <th scope="row">主题</th>
+            <td data-label="要求">颜色写成 <code>:root</code> 上的 token；在 <code>prefers-color-scheme: dark</code> 下有专门设计的深色主题。</td>
+            <td data-label="谁来保证"><code>check.py</code> 浅色、深色都截图，agent 逐块看</td>
+          </tr>
+          <tr>
+            <th scope="row">宽度</th>
+            <td data-label="要求">400px 宽时不能横向滚动。</td>
+            <td data-label="谁来保证"><code>check.py</code> 在 400 和 1280 宽下检测，横向滚动报 <span class="mk x">✗</span></td>
+          </tr>
+          <tr>
+            <th scope="row"><code>file://</code> 规则</th>
+            <td data-label="要求"><code>fetch()</code> 读不了本地文件，数据嵌进 <code>&lt;script type="application/json"&gt;</code>。不用 ES module 导入别的文件。<code>history.*</code> 和 <code>localStorage</code> 包在 try/catch 里。</td>
+            <td data-label="谁来保证"><code>check.py</code> 用 <code>file://</code> 打开页面，JS 异常和 <code>console.error</code> 报 <span class="mk x">✗</span></td>
+          </tr>
+          <tr>
+            <th scope="row">内容诚实</th>
+            <td data-label="要求">用读者的词。样例数据标明是样例。不编造指标、引语和来源。</td>
+            <td data-label="谁来保证">agent 自己遵守，见 <code>references/<wbr>explain.md</code> 和 <code>checklist.md</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="src"><b>出处</b>SKILL.md「Contract for every page」；references/checklist.md；scripts/check.py</p>
+    </section>
+
+    <section aria-labelledby="s-inline">
+      <h2 id="s-inline"><code>inline.py</code>：把本地文件写进页面</h2>
+      <p>页面引用了本地文件时，<code>inline.py</code> 把它们换成文件里的内容。只要有一个文件找不到，它就整个停下、什么都不写，不留半成品。</p>
+      <ul>
+        <li><code>&lt;script src="x.js"&gt;&lt;/script&gt;</code> 变成带 <code>data-inlined="x.js"</code> 的内联脚本；脚本里的 <code>&lt;/script</code> 被转义，不会提前结束标签。</li>
+        <li><code>&lt;link rel="stylesheet"&gt;</code> 变成 <code>&lt;style data-inlined&gt;</code>；本地的 <code>&lt;link rel="icon"&gt;</code> 变成 <code>data:</code> URI。</li>
+        <li><code>img</code>、<code>source</code>、<code>video</code>、<code>audio</code>、<code>track</code> 和 SVG <code>image</code> 上的 <code>src</code>、<code>srcset</code>、<code>poster</code>、<code>href</code> 变成 <code>data:</code> URI。</li>
+        <li><code>&lt;style&gt;</code>、<code>style=""</code> 和被内联的 CSS 里的 <code>url()</code> 与 <code>@import</code> 也一并写进来。</li>
+      </ul>
+      <p>找文件的顺序：先找引用它的文件所在目录（CSS 里的引用按那个 CSS 文件的目录算），再找页面所在目录，最后找 skill 的 <code>assets/</code>。所以任何页面都可以写 <code>vendor/<wbr>chart.umd.min.js</code>，它会解析到 skill 自带的 Chart.js 4.5.1。</p>
+      <p><code>inline.py</code> 直接导入 <code>check.py</code> 的 <code>classify()</code>，两者对“本地引用”的判断是同一个函数：<code>inline.py</code> 要内联的，正是 <code>check.py</code> 会报 ✗ 的那一类。外部 URL <code>inline.py</code> 不碰，留给 <code>check.py</code> 报告。</p>
+      <pre class="term"><code><span class="cmd">$ python3 scripts/inline.py demo/chart.html</span>
+<span class="mk n">·</span> inlined vendor/chart.umd.min.js (209 kB)
+<span class="mk ok">✓</span> demo/chart.html (209 kB)
+<span class="cmd">$ python3 scripts/inline.py demo/chart.html</span>
+<span class="mk n">·</span> nothing local to inline
+<span class="mk ok">✓</span> demo/chart.html (209 kB)
+<span class="cmd">$ python3 scripts/inline.py demo/broken.html -o demo/broken-inlined.html</span>
+<span class="mk x">✗</span> cannot find 'logo.png' next to the page or in the skill's assets/
+nothing written</code></pre>
+      <p>第一次把 Chart.js 写进页面；第二次运行时已经没有本地引用，文件不变，这就是文件头说的“对自己的输出再跑一次，什么都不改”。第三次缺 <code>logo.png</code>，退出码 1，没有写出任何文件。</p>
+      <p>调研时验证过：Chart.js 和 uPlot 内联进一个 262 KB 的文件，断网用 <code>file://</code> 打开，两个图表都能画出来。</p>
+      <p>上限：标签是用正则表达式改写的，手写页面够用；属性值里含 <code>&gt;</code>，或者标签被注释掉时，可能要手工内联。真遇到了再换成正经的分词器。</p>
+      <p class="src"><b>出处</b>scripts/inline.py 文件头说明（含「Ceiling」）和 Inliner 类；references/charts.md「Pick the tool」；docs/research.md「图表库内联的体积」</p>
+    </section>
+
+    <section aria-labelledby="s-check">
+      <h2 id="s-check"><code>check.py</code>：先扫标签，再断网打开</h2>
+      <p>静态扫描保证文件里没有向外的引用；Chrome 检查在断网条件下真的打开页面，抓住偷偷发出的请求、脚本错误和横向溢出；截图块把剩下的问题交给 agent 用眼睛核对。“不引用任何外部资源”的契约和“解析后扫描”的做法，借自 warpdotdev/common-skills 的 readout。</p>
+
+      <h3>静态扫描：不开浏览器</h3>
+      <p>用 Python 标准库的 <code>html.parser</code> 逐个读标签，检查每个会被加载的引用。</p>
+      <ul>
+        <li>检查的位置：<code>script src</code>、<code>link href</code>，<code>img</code> 和 <code>source</code> 的 <code>src</code>、<code>srcset</code>，<code>video</code> 的 <code>src</code>、<code>poster</code>，<code>audio</code>、<code>track</code>、<code>iframe</code>、<code>embed</code>、<code>input</code> 的 <code>src</code>，<code>object data</code>，SVG <code>image</code>、<code>use</code>、<code>feImage</code> 的 <code>href</code>；还有 <code>&lt;style&gt;</code> 和 <code>style=""</code> 里的 <code>url()</code> 与 <code>@import</code>。</li>
+        <li>以 <code>#</code>、<code>data:</code>、<code>blob:</code>、<code>about:</code> 开头的算在文件里。以 <code>http:</code>、<code>https:</code>、<code>//</code> 开头的报 <span class="mk x">✗</span>“loads … from the network”。其余的相对路径是单独的文件，报 <span class="mk x">✗</span>“is a separate file; inline it”。</li>
+        <li>向外的 <code>&lt;a href&gt;</code> 只计数（<span class="mk n">·</span>），页面不靠它们渲染；指向本地文件的 <code>&lt;a href&gt;</code> 报 <span class="mk w">!</span>，因为对方没有那个文件。</li>
+        <li>缺 <code>&lt;!doctype html&gt;</code>、<code>&lt;meta charset&gt;</code>、<code>&lt;meta name=viewport&gt;</code> 或 <code>&lt;title&gt;</code>，各报一条 <span class="mk w">!</span>。</li>
+      </ul>
+
+      <h3>断网渲染：真的打开它</h3>
+      <div class="split">
+        <ul>
+          <li>用 <code>--remote-debugging-pipe</code> 启动本机的无头 Chrome（也认 Chromium、Edge，或环境变量 <code>AWESOME_HTML_CHROME</code> 指定的程序），每次用新的临时 profile。DevTools 协议走 3 号和 4 号文件描述符，所以只在 macOS 和 Linux 上跑。</li>
+          <li><code>--host-resolver-rules="MAP * ~NOTFOUND"</code> 让所有域名都解析失败，同时不走代理。页面想联网也连不上，但它发出的请求会被记下来。</li>
+          <li>页面本身和每个 <code>--fragment</code>，各在 400 和 1280 两种宽度、浅色和深色两种配色下打开，共 4 次。窗口高 900px；宽度小于 600 时按手机模拟。</li>
+          <li>每次都用 <code>file://</code> 打开，等 load 事件、字体加载完、再过一帧加 300ms，然后跑一段布局探针，再截图。</li>
+          <li>记下：离开文件的请求（<code>file:</code>、<code>data:</code>、<code>blob:</code>、<code>about:</code>、<code>chrome:</code>、<code>devtools:</code> 以外的地址）、JS 异常、<code>console.error</code>、浏览器错误日志、横向滚动（并点名最宽的元素）、<code>.slide</code> 里溢出的内容、被 <code>overflow: hidden</code> 或 <code>clip</code> 裁掉的内容（<code>text-overflow: ellipsis</code> 除外），以及自己横向滚动的盒子。</li>
+        </ul>
+        <figure class="diagram">
+          <svg viewBox="0 0 416 640" role="img" aria-label="静态扫描之后，用断网的无头 Chrome 以 file:// 打开页面；页面和每个 fragment 各渲染 4 次：400 宽浅色、1280 宽浅色、400 宽深色、1280 宽深色；每次渲染切成 1200px 高的截图块，agent 逐块打开看">
+            <defs>
+              <marker id="d2-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" class="arrowhead"/>
+              </marker>
+            </defs>
+            <g class="node"><rect x="88" y="8" width="240" height="64" rx="6"/><text x="208" y="32">静态扫描</text><text class="sub" x="208" y="54">html.parser 逐个读标签</text></g>
+            <g class="node key"><rect x="88" y="120" width="240" height="64" rx="6"/><text x="208" y="144">断网的无头 Chrome</text><text class="sub" x="208" y="166">所有域名都解析失败</text></g>
+            <rect class="group" x="8" y="232" width="400" height="176" rx="8"/>
+            <text class="group-label" x="208" y="254">页面和每个 --fragment 各 4 次</text>
+            <g class="node"><rect x="24" y="272" width="176" height="48" rx="6"/><text x="112" y="296">400 宽，浅色</text></g>
+            <g class="node"><rect x="216" y="272" width="176" height="48" rx="6"/><text x="304" y="296">1280 宽，浅色</text></g>
+            <g class="node"><rect x="24" y="336" width="176" height="48" rx="6"/><text x="112" y="360">400 宽，深色</text></g>
+            <g class="node"><rect x="216" y="336" width="176" height="48" rx="6"/><text x="304" y="360">1280 宽，深色</text></g>
+            <g class="node"><rect x="88" y="456" width="240" height="64" rx="6"/><text x="208" y="480">截图块</text><text class="sub mono" x="208" y="502">page-400-light-1.png …</text></g>
+            <g class="node"><rect x="88" y="568" width="240" height="64" rx="6"/><text x="208" y="592">agent 看每一块</text><text class="sub" x="208" y="614">找裁切、重叠、对比度问题</text></g>
+
+            <path class="edge" d="M208 72 V118" marker-end="url(#d2-arrow)"/>
+            <text class="edge-label" x="208" y="96">接着</text>
+            <path class="edge" d="M208 184 V230" marker-end="url(#d2-arrow)"/>
+            <text class="edge-label" x="208" y="208">用 file:// 打开</text>
+            <path class="edge" d="M208 408 V454" marker-end="url(#d2-arrow)"/>
+            <text class="edge-label" x="208" y="432">每次切成 1200px 高的块</text>
+            <path class="edge" d="M208 520 V566" marker-end="url(#d2-arrow)"/>
+            <text class="edge-label" x="208" y="544">逐块打开</text>
+          </svg>
+          <figcaption>一个页面在断网的 Chrome 里渲染 4 次，每次切成 1200px 高的截图块，交给 agent 一块一块看。每加一个 <code class="flag">--fragment</code>，再多 4 次。</figcaption>
+        </figure>
+      </div>
+
+      <h3>截图块：能按原尺寸读</h3>
+      <p>每次渲染按 1200px 高切成 PNG。<code>TILE_HEIGHT</code> 的注释给了理由：够高，读得下去；又不会高到被看图软件缩小。SKILL.md 的说法是“so they can be read at full size”。</p>
+      <p>只有一块时文件名是 <code>page-400-light.png</code>，多块时是 <code>page-400-light-1.png</code>、<code>page-400-light-2.png</code>……；<code>--fragment</code> 的渲染用 fragment 名代替 <code>page</code>，并转成安全的文件名。每次渲染最多 15 块，更长的页面只截顶部并报一条 <span class="mk w">!</span>，建议拆页或用 <code class="flag">--fragment</code> 分段渲染。但对普通的滚动页面，fragment 只是滚到锚点，截图仍从顶部截起：本页实测时，带和不带 fragment 的两组截图逐字节相同。所以长页面要拆开或写短。截图默认放进新建的临时目录 <code>awesome-html-shots-*</code>，<code class="flag">--shots</code> 可以指定位置。</p>
+
+      <h3>✗、!、· 三个级别</h3>
+      <p>每条渲染发现的末尾用方括号写出它出现在哪几次渲染里，四次都有时写 <code>[every render]</code>。</p>
+      <table class="stack">
+        <thead><tr><th scope="col">标记</th><th scope="col">意思</th><th scope="col">会触发它的情况</th></tr></thead>
+        <tbody>
+          <tr>
+            <th scope="row"><span class="mk x">✗</span> 问题</th>
+            <td data-label="意思">必须修。有任何一条，退出码就是 1；渲染中途失败时是 2。</td>
+            <td data-label="会触发它的情况">静态：从网络加载、没内联的本地文件。渲染：离开文件的请求、JS 异常、<code>console.error</code>、浏览器错误、横向滚动、幻灯片内容被裁。</td>
+          </tr>
+          <tr>
+            <th scope="row"><span class="mk w">!</span> 警告</th>
+            <td data-label="意思">不改变退出码，但要在截图里确认。</td>
+            <td data-label="会触发它的情况">缺 doctype、charset、viewport 或 title；链接指向本地文件；内容被 <code>overflow: hidden</code> 裁掉；页面超过 15 块，只截了顶部；没找到 Chrome，或系统不是 macOS、Linux，渲染被跳过。</td>
+          </tr>
+          <tr>
+            <th scope="row"><span class="mk n">·</span> 说明</th>
+            <td data-label="意思">不用修，知道就行。</td>
+            <td data-label="会触发它的情况">外链数量；盒子在自己内部滚动（截图里滚动条是隐藏的）；用的是哪个 Chrome、截图放在哪；用 <code class="flag">--no-browser</code> 跳过了渲染；最后一行提醒打开每一块截图。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>没有 ✗ 时会打印两行 <span class="mk ok">✓</span>：“static: nothing loads from outside the file”和“browser: no outside requests, no JS errors, no sideways scroll”。退出码 0 表示干净，1 表示有 ✗，2 表示用法或环境出错，例如渲染中途失败。</p>
+      <p>下面是一个故意写坏的演示页的真实输出。它引用了 CDN 上的脚本和一张没内联的 <code>logo.png</code>，有一个 1600px 宽的 <code>div</code>、一个 <code>overflow: hidden</code> 的矮盒子、一段横向滚动的 <code>&lt;pre&gt;</code>，还有一个外链和一个指向本地 <code>notes.md</code> 的链接。</p>
+      <pre class="term"><code><span class="cmd">$ python3 scripts/check.py demo/broken.html --shots demo/shots-broken</span>
+demo/broken.html (1 kB)
+<span class="mk x">✗</span> L7 &lt;script src&gt;: loads 'https://cdn.example.com/lib.js' from the network
+<span class="mk x">✗</span> L15 &lt;img src&gt;: 'logo.png' is a separate file; inline it (scripts/inline.py)
+<span class="mk w">!</span> L19 &lt;a href='notes.md'&gt;: links to a file the recipient will not have
+<span class="mk n">·</span> 1 outbound link(s); they need a network only when clicked
+<span class="mk n">·</span> rendered offline with Chrome/154.0.8037.97 (DNS blocked); screenshots in demo/shots-broken
+  page-400-light: 3600px tall → page-400-light-1.png … page-400-light-3.png (3 tiles)
+  page-400-dark: 3600px tall → page-400-dark-1.png … page-400-dark-3.png (3 tiles)
+  page-1280-light: 900px tall → page-1280-light.png
+  page-1280-dark: 900px tall → page-1280-dark.png
+<span class="mk x">✗</span> page scrolls sideways (1608px &gt; 400px); widest: div.wide [page-400-light, page-400-dark]
+<span class="mk x">✗</span> requested https://cdn.example.com/lib.js [every render]
+<span class="mk x">✗</span> browser error: Failed to load resource: net::ERR_FILE_NOT_FOUND file:///…/demo/logo.png [every render]
+<span class="mk x">✗</span> page scrolls sideways (1608px &gt; 1280px); widest: div.wide [page-1280-light, page-1280-dark]
+<span class="mk w">!</span> content is cut off inside: div.clip (overflow hidden); confirm in the screenshot that nothing needed is lost [every render]
+<span class="mk n">·</span> scrolls inside its own box: pre.log (scrollbars are hidden in screenshots) [page-400-light, page-400-dark]
+<span class="mk n">·</span> open every tile listed above before calling the page done</code></pre>
+      <p>退出码是 1。CDN 脚本被报了两次：静态扫描看到了标签，Chrome 又记下了真正发出的请求；<code>logo.png</code> 的第二次是 <code>file://</code> 下找不到文件。400 宽下 3600px 的高度，我们推测是横向溢出连带的（手机模拟为容纳 1608px 宽而缩小整页），所以先修 ✗ 再看截图。</p>
+
+      <h3>agent 怎么用这些结果</h3>
+      <p>SKILL.md 的要求：修掉每一个 ✗；每一条 ! 都在截图里确认；打开列出的每一块截图，修裁切、重叠、任一主题下对比度不够、空白区域和坏掉的状态。调试时可以用 <code class="flag">--schemes light</code> 或 <code class="flag">--widths 400</code> 减少截图数量，最后一次要用默认参数。找不到 Chrome 时，要明说页面没有渲染、没人看过；报告里照原样贴出 ✓ 和 ✗ 行。“没做过的视觉检查不许说做过”这条借自 tt-a1i/archify。</p>
+      <p class="src"><b>出处</b>scripts/check.py 文件头说明、StaticScan 类、classify()、browser_pass()、main()；SKILL.md「Workflow」第 6 步和「Honesty」；references/checklist.md「Looked at」；NOTICE</p>
+    </section>
+
+    <section aria-labelledby="s-track">
+      <h2 id="s-track"><code>track.py</code>：看板从 Markdown 生成</h2>
+      <p>进度只记在仓库里的 Markdown 文件中，HTML 看板是从它生成的只读页面，这是 owner 定下的规则。<code>track.py</code> 负责这次转换，所以看板不会和记录分叉。这个仓库自己的 <code>examples/progress.html</code> 就是从 <code>docs/wip/html-skill.md</code> 生成的。</p>
+      <p>它只读源文件里的这几部分，其它段落（目标、笔记、链接）都忽略：</p>
+      <pre class="sample"><code># 项目名（WIP）
+更新：2026-10-06
+## 已定决策
+| 日期 | 决策 | 谁定的 |
+## 进度
+### 里程碑名
+- [完成] 条目。证据：提交 abc1234
+## 还没做
+- 有意不做或推迟的事</code></pre>
+      <ul>
+        <li>状态只有五种：<code>done</code>、<code>doing</code>、<code>blocked</code>、<code>todo</code>、<code>dropped</code>，中文写作 完成、进行中、阻塞、待办、已放弃。“证据：”或“Evidence:”后面的文字成为条目的备注。标题里的“（WIP）”会被去掉。</li>
+        <li>未知状态、写在 <code>###</code> 里程碑之外的条目，或者一个里程碑都没有，都报 <span class="mk x">✗</span> 并给出行号，什么都不写。</li>
+        <li>第一次运行从 <code>assets/<wbr>track.html</code> 复制出页面，并按内容选 <code>lang</code>：汉字至少占字母总数的五分之一时用 <code>zh-CN</code>，<code class="flag">--lang</code> 可以覆盖。之后每次只替换 <code>#track-data</code> 数据块和 <code>&lt;title&gt;</code>，模板上的改动会保留。</li>
+        <li>一句话摘要是判断，不是数据，所以由 <code class="flag">--summary</code> 传入；不传就沿用页面上已有的那句。</li>
+        <li><code>updated</code> 取自源文件的“更新：”行，没有就用当天日期；<code>source</code> 记录源文件相对仓库根目录的路径。JSON 里的 <code>&lt;/</code> 写成 <code>&lt;\/</code>，免得提前结束 <code>&lt;script&gt;</code>。</li>
+        <li>完成了却没写证据、阻塞了却没说被什么阻塞的条目，各报一条 <span class="mk w">!</span>。证据不能编，缺口要报告给用户。</li>
+      </ul>
+      <pre class="term"><code><span class="cmd">$ python3 scripts/track.py docs/wip/html-skill.md demo/progress.html</span>
+<span class="mk ok">✓</span> created demo/progress.html
+<span class="mk n">·</span> 7 milestones, 23 items, 18/23 done, 11 decisions, 5 not-done lines
+<span class="mk w">!</span> done without evidence: 新增原型模板：带参数的 hash 路由，每个状态都有 URL，评审条放在正常流里
+<span class="mk w">!</span> done without evidence: 参考文档按 3 份卡壳记录修订：设计力度、中文标题、窄屏表格、图解宽度、路径隐私、焦点、动效
+<span class="mk w">!</span> no summary yet: pass --summary with one sentence on where it stands and what is next
+<span class="mk n">·</span> next: run check.py on the page
+<span class="cmd">$ python3 scripts/track.py demo/bad.md demo/bad.html</span>
+<span class="mk x">✗</span> L7: unknown status [finished]; use one of ['blocked', 'doing', 'done', 'dropped', 'todo']
+nothing written</code></pre>
+      <p>第一段用的是这个仓库的进度文件（页面写进临时目录），两条 ! 是源文件里真实的缺口；第二段故意把状态写成 <code>[finished]</code>。</p>
+      <p>发给合作方之前要注意：整个数据块跟着文件走，包括条目、备注、决策和 <code>source</code> 路径。合作方不该看到的内容，先从源文件里删掉（或者用 owner 认可的一份合作方副本），再重新生成。</p>
+      <p class="src"><b>出处</b>scripts/track.py 文件头说明和 parse()、main()；references/track.md；docs/wip/html-skill.md 决策表第 3 条</p>
+    </section>
+
+    <section aria-labelledby="s-why">
+      <h2 id="s-why">为什么不用 Artifact 或 answer-me-with-html</h2>
+      <p class="verdict">要把页面作为一个文件交给合作方，就用 awesome-html。Claude 的 Artifact 页面跟 Claude 账号绑定，打包不出来；answer-me-with-html 的页面能离线，但组件和主题是固定的，也没有真正的图表。</p>
+      <div class="split">
+        <div class="stack">
+          <p>README 的「Why」把这件事说成三句：托管的 artifact 页面留在账号里，没法把文件交给合作方；模板渲染器能产出文件，但每一页都长得一样；awesome-html 保留设计上的约束，自由地写页面，然后证明这个文件能独立存在。</p>
+          <p>不用 Artifact 是 owner 的决定（<code>docs/wip/<wbr>html-skill.md</code> 决策表第一条），但它仍是质量标杆：目标写的是“质量对标内置 artifact 页面”。内置的 artifact 设计指南没有许可文件，所以只借原则、用自己的话重写。</p>
+        </div>
+        <figure class="diagram">
+          <svg viewBox="0 0 416 320" role="img" aria-label="左边 Artifact：写页面，发布成跟 Claude 账号绑定的托管页面，没有文件可交给合作方。右边 awesome-html：写页面，交给 inline.py 和 check.py，写出一个 .html 文件，直接发、离线打开">
+            <defs>
+              <marker id="d3-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" class="arrowhead"/>
+              </marker>
+              <marker id="d3-arrow-fail" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" class="arrowhead fail"/>
+              </marker>
+            </defs>
+            <text class="col" x="116" y="16">Artifact</text>
+            <text class="col" x="316" y="16">awesome-html</text>
+            <g class="node"><rect x="24" y="32" width="184" height="56" rx="6"/><text x="116" y="60">写页面</text></g>
+            <g class="node"><rect x="224" y="32" width="184" height="56" rx="6"/><text x="316" y="60">写页面</text></g>
+            <g class="node"><rect x="24" y="136" width="184" height="64" rx="6"/><text x="116" y="160">托管页面</text><text class="sub" x="116" y="182">跟 Claude 账号绑定</text></g>
+            <g class="node"><rect x="224" y="136" width="184" height="64" rx="6"/><text x="316" y="160">打包并检查</text><text class="sub mono" x="316" y="182">inline.py、check.py</text></g>
+            <g class="node fail"><rect x="24" y="248" width="184" height="64" rx="6"/><text x="116" y="272">✗ 打包不了</text><text class="sub" x="116" y="294">没有文件可交给合作方</text></g>
+            <g class="node key"><rect x="224" y="248" width="184" height="64" rx="6"/><text x="316" y="272">一个 .html 文件</text><text class="sub" x="316" y="294">直接发，离线打开</text></g>
+
+            <path class="edge" d="M116 88 V134" marker-end="url(#d3-arrow)"/>
+            <text class="edge-label" x="116" y="112">发布</text>
+            <path class="edge" d="M316 88 V134" marker-end="url(#d3-arrow)"/>
+            <text class="edge-label" x="316" y="112">交给</text>
+            <path class="edge fail" d="M116 200 V246" marker-end="url(#d3-arrow-fail)"/>
+            <text class="edge-label fail" x="116" y="224">想发给合作方</text>
+            <path class="edge" d="M316 200 V246" marker-end="url(#d3-arrow)"/>
+            <text class="edge-label" x="316" y="224">写出</text>
+          </svg>
+          <figcaption>差别在第二步：Artifact 的页面留在 Claude 账号里；awesome-html 把页面写成一个能直接发送的文件。</figcaption>
+        </figure>
+      </div>
+      <table class="stack">
+        <thead><tr><th scope="col">方案</th><th scope="col">能不能作为一个文件发给合作方</th><th scope="col">外观和图表</th><th scope="col">现状</th></tr></thead>
+        <tbody>
+          <tr>
+            <th scope="row">Claude Artifact</th>
+            <td data-label="能不能作为一个文件发给合作方"><span class="mk x">✗</span> 不能：页面跟 Claude 账号绑定，打包不出来</td>
+            <td data-label="外观和图表">质量标杆：awesome-html 的目标是对标内置 artifact 页面</td>
+            <td data-label="现状">owner 已决定不再用它生成或发布 HTML</td>
+          </tr>
+          <tr>
+            <th scope="row">answer-me-with-html</th>
+            <td data-label="能不能作为一个文件发给合作方"><span class="mk ok">✓</span> 能：它的页面本来就能离线</td>
+            <td data-label="外观和图表">组件和主题都是固定的，没有真正的图表</td>
+            <td data-label="现状">暂时并存；awesome-html v1 跑通后替换它，停用要等 owner 授权</td>
+          </tr>
+          <tr>
+            <th scope="row">awesome-html</th>
+            <td data-label="能不能作为一个文件发给合作方"><span class="mk ok">✓</span> 能：一个 <code>.html</code>，<code>inline.py</code> 写进资源，<code>check.py</code> 验证</td>
+            <td data-label="外观和图表">每页按主题自定 <code>:root</code> token；图表用手写 SVG，或内置的 Chart.js 4.5.1</td>
+            <td data-label="现状">v1 的脚本、参考文档和模板已完成；复测和上线还是待办</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="src"><b>出处</b>README.md「Why」；docs/wip/html-skill.md「目标」、决策表第 1、4 条、「上线」；docs/research.md「不采用」和「采用或借鉴」最后一行；references/design.md；references/charts.md「Pick the tool」；NOTICE</p>
+    </section>
+
+    <section aria-labelledby="s-limits">
+      <h2 id="s-limits">边界和还没做的事</h2>
+      <ul>
+        <li>渲染需要 macOS 或 Linux，以及本机的 Chrome、Chromium 或 Edge；Windows 上只跑静态扫描。没有浏览器时，<code>check.py</code> 会打印一条 ! 说明页面没有渲染。</li>
+        <li><code>check.py</code> 只渲染页面加载后的样子，不会点击，toast、加载中这类瞬时状态截不到。原型的每个界面和状态要用 <code class="flag">--fragment</code> 逐个渲染。</li>
+        <li>每次渲染最多 15 块截图，更长的页面只截顶部；对普通滚动页面，<code class="flag">--fragment</code> 截不到下面的部分。</li>
+        <li><code>inline.py</code> 用正则改写标签，遇到属性值里的 <code>&gt;</code> 或被注释掉的标签，可能要手工内联。</li>
+        <li>还没有配色校验器（对比度和色盲区分度），参考文档里只有文字规则。</li>
+        <li>还没有幻灯片的实测样例，只有模板和自动化测试。</li>
+      </ul>
+      <p>接下来，<code>docs/wip/<wbr>html-skill.md</code> 里还有两类待办。一是用修订后的 skill 再让独立子代理做一轮，确认上次卡住的地方确实消失了。二是上线的四步：首次 git 提交、安装到本机的 Claude Code、把全局规则改成指向 awesome-html、停用 answer-me-with-html，每一步都要 owner 授权。</p>
+      <p class="src"><b>出处</b>docs/wip/html-skill.md「还没做」「按实测反馈修订」「上线」；README.md「How a page is made」后一段；scripts/check.py main()；scripts/inline.py 文件头「Ceiling」；SKILL.md「Workflow」第 6 步</p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>依据的文件：SKILL.md；scripts/inline.py、check.py、track.py；references/design.md、explain.md、track.md、charts.md、checklist.md；assets/base.html、track.html；docs/research.md；docs/wip/html-skill.md；NOTICE；README.md。本页从 assets/base.html 起步搭建。</p>
+  </footer>
+</div>
+</body>
+</html>

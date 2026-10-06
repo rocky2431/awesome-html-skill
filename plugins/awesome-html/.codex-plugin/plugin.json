@@ -1,0 +1,20 @@
+{
+  "name": "awesome-html",
+  "version": "0.1.0",
+  "description": "Local, self-contained single-file HTML pages that open offline: explainers, progress trackers, clickable prototypes, slide decks, and charts.",
+  "author": {
+    "name": "rocky2431"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Awesome HTML",
+    "shortDescription": "Local single-file HTML pages that open offline",
+    "longDescription": "Build explainers, reports, progress trackers, clickable prototypes, slide decks, and chart pages as one HTML file with everything inside, so they open offline and can be sent to anyone. Includes design references, starting templates, a resource inliner, and an offline check that renders the page in Chrome at phone and desktop widths in light and dark. No account, hosted service, or network needed at view time.",
+    "developerName": "rocky2431",
+    "category": "Productivity",
+    "capabilities": [
+      "Skills"
+    ],
+    "defaultPrompt": "Use $awesome-html to turn this into a self-contained HTML page I can send as one file."
+  }
+}

@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>awesome-html 介绍</title>
+<style>
+/* Plan. Palette follows examples/how-it-works.html (same subject, the page a partner may get next):
+   green-tinted neutrals and one deep teal accent that marks "the path that passes".
+   Neighbor check: a deck about any developer tool could get teal + system sans, so the identity
+   comes from the subject's own objects instead: file names and scripts set in mono, check.py's
+   real ✓ / ✗ / ! marks used as the status marks, and this deck's own renders drawn at their true
+   400:1280 proportions. Editorial effort (first impression for a partner team): the one risk is the
+   full accent field on the title slide; every other slide stays calm.
+   Layout: fixed 1920x1080 stage, one left-aligned column on a 144px margin; the title sits at the
+   same top-left position on every slide and sources are pinned to the bottom edge.
+   Type scale (stage px, ratio ~1.4): 28 / 40 / 56 / 80 / 112. */
+:root {
+  --paper: #f5f8f7;      /* slide background, grey tinted toward the accent */
+  --surface: #ffffff;    /* table rows, diagram nodes */
+  --ink: #13201d;
+  --muted: #4f5e5a;
+  --rule: #cfdad6;
+  --accent: #0a6a5e;     /* the path that passes: awesome-html row, final render node, ✓ */
+  --bad: #b3261e;        /* ✗ only, always beside the mark and a word */
+  --field: #0a5a50;      /* title slide color field */
+  --field-ink: #f2faf7;
+  --field-muted: #b9dcd4;
+  --backdrop: #dde5e2;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", monospace;
+  --scale: 1;
+  --progress: 0;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #111816;
+    --surface: #18221f;
+    --ink: #e1eae7;
+    --muted: #9aaaa5;
+    --rule: #2b3834;
+    --accent: #63c4b4;
+    --bad: #ff9184;
+    --field: #0e3631;
+    --field-ink: #e4f2ee;
+    --field-muted: #9fc9c0;
+    --backdrop: #0a0f0e;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--backdrop); }
+body { font-family: var(--font-body); color: var(--ink); }
+.slide {
+  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--scale));
+  background: var(--paper); padding: 112px 144px; overflow: hidden;
+  display: none; flex-direction: column; gap: 48px;
+}
+.slide.is-current { display: flex; }
+.slide h1, .slide h2 { font-family: var(--font-display); margin: 0; line-height: 1.25; text-wrap: balance; }
+.slide h1 { font-size: 112px; line-height: 1.1; }
+.slide h2 { font-size: 80px; }
+.slide p, .slide li { font-size: 40px; line-height: 1.7; margin: 0; max-width: 32em; }
+.slide ul, .slide ol { font-size: 40px; margin: 0; padding-left: 1.1em; display: grid; gap: 20px; }
+.slide .small { font-size: 28px; color: var(--muted); }
+.slide .notes { display: none; }
+.slide .nb { display: inline-block; } /* keeps a CJK title phrase on one line */
+.slide code { font-family: var(--font-mono); font-size: 0.85em; overflow-wrap: anywhere; }
+.slide .src { margin-top: auto; font-size: 28px; line-height: 1.5; color: var(--muted); max-width: none; }
+.mark { font-weight: 700; display: inline-block; min-width: 1.2em; }
+.mark.ok { color: var(--accent); }
+.mark.bad { color: var(--bad); }
+
+/* Title slide: the one color field. */
+.slide.cover { background: var(--field); color: var(--field-ink); justify-content: flex-end; gap: 32px; }
+.cover .lede { font-size: 56px; line-height: 1.4; }
+.cover .small, .cover .self { color: var(--field-muted); }
+.cover .self { font-size: 28px; }
+.cover .file { position: absolute; top: 112px; right: 144px; width: 280px; height: auto; color: var(--field-ink); }
+.cover .file path { fill: none; stroke: currentColor; stroke-width: 4; stroke-linejoin: round; }
+.cover .file text { fill: currentColor; font: 600 56px var(--font-mono); text-anchor: middle; }
+
+/* Comparison and catalogue tables. */
+.slide table { border-collapse: collapse; width: 100%; }
+.slide th { font-size: 28px; font-weight: 600; color: var(--muted); text-align: left; padding: 0 24px 16px; border-bottom: 2px solid var(--rule); }
+.slide td { font-size: 40px; line-height: 1.4; padding: 18px 24px; border-bottom: 2px solid var(--rule); vertical-align: baseline; overflow-wrap: break-word; }
+.slide th:first-child, .slide td:first-child { padding-left: 0; }
+.slide tr.ours td { font-weight: 700; }
+.slide tr.ours td:first-child { color: var(--accent); }
+.catalogue td.kind { font-weight: 700; white-space: nowrap; }
+.catalogue td.file { font-family: var(--font-mono); font-size: 28px; color: var(--muted); }
+
+/* Diagrams: one stage pixel per SVG unit. */
+.diagram { margin: 0; display: grid; gap: 24px; }
+.diagram svg { display: block; height: auto; color: var(--ink); font-family: var(--font-body); }
+.diagram figcaption { font-size: 28px; line-height: 1.5; color: var(--muted); }
+.diagram .node rect { fill: var(--surface); stroke: currentColor; stroke-width: 2; }
+.diagram .node.key rect { stroke: var(--accent); stroke-width: 5; }
+.diagram text { fill: currentColor; text-anchor: middle; dominant-baseline: middle; }
+.diagram .n-title { font-size: 40px; font-weight: 700; }
+.diagram .n-sub { font-size: 28px; fill: var(--muted); }
+.diagram .mono { font-family: var(--font-mono); }
+.diagram .edge { fill: none; stroke: currentColor; stroke-width: 2.5; }
+.diagram .arrowhead { fill: currentColor; }
+.diagram .edge-label { font-size: 28px; fill: var(--muted); }
+.diagram .head { font-size: 28px; font-weight: 600; fill: var(--muted); }
+.diagram .cell { fill: none; stroke: currentColor; stroke-width: 2; }
+/* The render matrix depicts light and dark renders, so its fills are fixed, not themed. */
+.r-light .bg { fill: #dde5e2; } .r-light .pg { fill: #f5f8f7; } .r-light .bar { fill: #13201d; } .r-light .acc { fill: #0a6a5e; }
+.r-dark .bg { fill: #0a0f0e; } .r-dark .pg { fill: #111816; } .r-dark .bar { fill: #e1eae7; } .r-dark .acc { fill: #63c4b4; }
+
+.split { display: grid; grid-template-columns: 520px minmax(0, 1fr); gap: 96px; align-items: start; }
+.split > * { min-width: 0; }
+.marks { list-style: none; padding-left: 0; gap: 28px; }
+.marks li { padding-left: 1.4em; text-indent: -1.4em; }
+.reading { display: grid; gap: 48px; min-width: 0; }
+.reading .rule { font-weight: 700; padding-top: 32px; border-top: 2px solid var(--rule); }
+
+.steps { list-style: none; padding-left: 0; gap: 40px; }
+.steps li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 24px; max-width: none; }
+.steps .n { grid-row: span 2; font: 700 56px/1.2 var(--font-mono); color: var(--accent); }
+.steps .t { font-weight: 700; }
+.steps .d { color: var(--muted); }
+.steps .d code { color: var(--ink); }
+
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 96px; }
+.cols > div { min-width: 0; display: grid; gap: 20px; align-content: start; }
+.cols h3 { margin: 0; font-size: 40px; padding-bottom: 16px; border-bottom: 2px solid var(--rule); }
+.cols ul { list-style: none; padding-left: 0; gap: 16px; }
+
+.counter { position: fixed; right: 16px; bottom: 12px; font: 13px/1 var(--font-body); color: var(--muted); font-variant-numeric: tabular-nums; }
+.progress { position: fixed; left: 0; bottom: 0; height: 3px; width: calc(var(--progress) * 100%); background: var(--accent); }
+@media (prefers-reduced-motion: no-preference) {
+  .progress { transition: width 0.2s ease-out; }
+}
+@media print {
+  @page { size: 1920px 1080px; margin: 0; }
+  html, body { height: auto; overflow: visible; background: none; }
+  .slide { display: flex; position: relative; left: 0; top: 0; transform: none; break-after: page; }
+  .counter, .progress { display: none; }
+}
+</style>
+</head>
+<body>
+<main class="deck">
+
+  <section class="slide cover" id="s1" aria-label="第 1 页">
+    <svg class="file" viewBox="0 0 280 340" role="img" aria-label="一个 .html 文件">
+      <path d="M8 8 H200 L272 80 V332 H8 Z"/>
+      <path d="M200 8 V80 H272"/>
+      <text x="140" y="220">.html</text>
+    </svg>
+    <h1>awesome-html</h1>
+    <p class="lede">一个文件，离线打开，直接发给合作方。</p>
+    <p class="small">给合作方团队的 10 分钟介绍，2026-10-06</p>
+    <p class="self">你正在看的这份幻灯片，就是它做出来的一个 .html 文件。</p>
+    <aside class="notes">开场：先说结论。awesome-html 是一个 agent skill，产出的页面是一个自包含的 .html 文件，不需要账号，也不依赖托管服务。这份幻灯片本身就是用它的 deck 模板做的，文件是 examples/intro-deck.html。</aside>
+  </section>
+
+  <section class="slide" id="s2" aria-label="第 2 页">
+    <h2>托管页面绑在账号里，没法当文件交给合作方</h2>
+    <p>我们要两样都有：能原样发出去，也像为这个主题专门做的。</p>
+    <table>
+      <thead><tr><th scope="col">做法</th><th scope="col">能当文件发出去</th><th scope="col">每页为主题而设计</th></tr></thead>
+      <tbody>
+        <tr><td>托管的 artifact 页面</td><td><span class="mark bad">✗</span>存在账号里</td><td><span class="mark ok">✓</span>有设计规范</td></tr>
+        <tr><td>模板渲染器</td><td><span class="mark ok">✓</span>能生成文件</td><td><span class="mark bad">✗</span>每页长得一样</td></tr>
+        <tr class="ours"><td>awesome-html</td><td><span class="mark ok">✓</span>一个 .html</td><td><span class="mark ok">✓</span>先定配色和字体</td></tr>
+      </tbody>
+    </table>
+    <p class="src">来源：<code>README.md</code> 的 Why 一节；<code>docs/wip/html-skill.md</code> 决策表</p>
+    <aside class="notes">2026-10-06 owner 定下：不再用 Artifact 生成或发布 HTML，因为它跟 Claude 账号绑定，没法打包发给合作方。模板渲染器能出文件，但每页都长一样。这个 skill 保留设计上的讲究，最后再验证文件能独立打开。</aside>
+  </section>
+
+  <section class="slide" id="s3" aria-label="第 3 页">
+    <h2>五类页面，交付的都是同一种单文件</h2>
+    <table class="catalogue">
+      <thead><tr><th scope="col">页面</th><th scope="col">用来做什么</th><th scope="col">examples/ 里的样例</th></tr></thead>
+      <tbody>
+        <tr><td class="kind">解释页和报告</td><td>讲清一个系统、一个 bug、一个选择</td><td class="file">how-it-works.html</td></tr>
+        <tr><td class="kind">进度看板</td><td>从仓库里的 Markdown 生成，只读</td><td class="file">progress.html</td></tr>
+        <tr><td class="kind">可点击原型</td><td>多屏、真实流程，示例数据有标注</td><td class="file">page-library-prototype.html</td></tr>
+        <tr><td class="kind">幻灯片</td><td>16:9 画布，键盘翻页，可打印成 PDF</td><td class="file">intro-deck.html（这份）</td></tr>
+        <tr><td class="kind">图表</td><td>手写 SVG，或内置的 Chart.js</td><td class="file">还没有样例</td></tr>
+      </tbody>
+    </table>
+    <p class="src">来源：<code>README.md</code> 的 Use it for 一节；<code>examples/</code> 目录</p>
+    <aside class="notes">进度看板 progress.html 是 scripts/track.py 从 docs/wip/html-skill.md 生成的，进度只记在文本文件里，HTML 是只读视图。解释页和原型都由独立子代理只按 skill 文档做出来。图表默认手写 SVG；读者需要悬停看数值时用内置的 Chart.js 4.5.1，内联后约 209 kB（references/charts.md）。</aside>
+  </section>
+
+  <section class="slide" id="s4" aria-label="第 4 页">
+    <h2><span class="nb">离线能打开要靠检查，</span><span class="nb">不靠自觉：</span><span class="nb">先内联，再扫描，再断网渲染</span></h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 1632 260" width="1632" role="img" aria-label="页面草稿经 inline.py 内联成单个 .html，check.py 扫描标签确认没有外部引用，再断网渲染 4 次">
+        <defs>
+          <marker id="d1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="arrowhead"/>
+          </marker>
+        </defs>
+        <g class="node"><rect x="2" y="24" width="276" height="216" rx="8"/>
+          <text class="n-title" x="140" y="80">页面草稿</text>
+          <text class="n-sub" x="140" y="144">引用本地的</text>
+          <text class="n-sub" x="140" y="184">脚本、字体、图片</text></g>
+        <g class="node"><rect x="452" y="24" width="276" height="216" rx="8"/>
+          <text class="n-title" x="590" y="80">单个 .html</text>
+          <text class="n-sub" x="590" y="144">所有资源</text>
+          <text class="n-sub" x="590" y="184">都在文件里</text></g>
+        <g class="node"><rect x="902" y="24" width="276" height="216" rx="8"/>
+          <text class="n-title" x="1040" y="80">静态扫描</text>
+          <text class="n-sub" x="1040" y="144">文件外的引用</text>
+          <text class="n-sub" x="1040" y="184">必须是 0 个</text></g>
+        <g class="node key"><rect x="1352" y="24" width="276" height="216" rx="8"/>
+          <text class="n-title" x="1490" y="80">离线渲染</text>
+          <text class="n-sub mono" x="1490" y="144">400 / 1280 px</text>
+          <text class="n-sub" x="1490" y="184">× 浅色 / 深色</text></g>
+        <path class="edge" d="M286 132 H442" marker-end="url(#d1-arrow)"/>
+        <text class="edge-label mono" x="365" y="100">inline.py</text>
+        <text class="edge-label" x="365" y="168">内联</text>
+        <path class="edge" d="M736 132 H892" marker-end="url(#d1-arrow)"/>
+        <text class="edge-label mono" x="815" y="100">check.py</text>
+        <text class="edge-label" x="815" y="168">扫描标签</text>
+        <path class="edge" d="M1186 132 H1342" marker-end="url(#d1-arrow)"/>
+        <text class="edge-label mono" x="1265" y="100">check.py</text>
+        <text class="edge-label" x="1265" y="168">断网打开</text>
+      </svg>
+      <figcaption>两个脚本都把结果打印成 ✓ 或 ✗；有 ✗ 就先修，再重跑。</figcaption>
+    </figure>
+    <p class="src">来源：<code>scripts/inline.py</code>、<code>scripts/check.py</code>、<code>SKILL.md</code> 工作流第 5、6 步</p>
+    <aside class="notes">inline.py 把页面引用的本地 JS、CSS、字体、图片改写进文件，重复运行不会再改动；找不到的本地文件会报 ✗ 且什么都不写。check.py 先用标准库的 html.parser 扫描标签，任何从文件外加载的引用都是 ✗；外链 a 标签允许，只计数。然后驱动本机 Chrome，在屏蔽 DNS 的情况下打开页面，宽度 400 和 1280，浅色和深色各一次。</aside>
+  </section>
+
+  <section class="slide" id="s5" aria-label="第 5 页">
+    <h2>每次渲染都存成截图，逐张打开看过才算完</h2>
+    <div class="split">
+      <figure class="diagram">
+        <svg viewBox="0 0 520 456" width="520" role="img" aria-label="这份幻灯片在 400 和 1280 像素宽、浅色和深色下的 4 种渲染，按比例画出">
+          <text class="head mono" x="160" y="24">400 px</text>
+          <text class="head mono" x="368" y="24">1280 px</text>
+          <text class="head" x="40" y="146">浅色</text>
+          <text class="head" x="40" y="358">深色</text>
+          <g class="r-light">
+            <rect class="bg" x="120" y="56" width="80" height="180"/>
+            <rect class="pg" x="120" y="124" width="80" height="45"/>
+            <rect class="acc" x="126" y="129" width="46" height="4"/>
+            <rect class="bar" x="126" y="138" width="62" height="2"/>
+            <rect class="bar" x="126" y="144" width="52" height="2"/>
+            <rect class="cell" x="120" y="56" width="80" height="180"/>
+            <rect class="bg" x="240" y="56" width="256" height="180"/>
+            <rect class="pg" x="240" y="74" width="256" height="144"/>
+            <rect class="acc" x="259" y="89" width="160" height="11"/>
+            <rect class="bar" x="259" y="116" width="198" height="5"/>
+            <rect class="bar" x="259" y="130" width="160" height="5"/>
+            <rect class="bar" x="259" y="144" width="180" height="5"/>
+            <rect class="cell" x="240" y="56" width="256" height="180"/>
+          </g>
+          <g class="r-dark">
+            <rect class="bg" x="120" y="268" width="80" height="180"/>
+            <rect class="pg" x="120" y="336" width="80" height="45"/>
+            <rect class="acc" x="126" y="341" width="46" height="4"/>
+            <rect class="bar" x="126" y="350" width="62" height="2"/>
+            <rect class="bar" x="126" y="356" width="52" height="2"/>
+            <rect class="cell" x="120" y="268" width="80" height="180"/>
+            <rect class="bg" x="240" y="268" width="256" height="180"/>
+            <rect class="pg" x="240" y="286" width="256" height="144"/>
+            <rect class="acc" x="259" y="301" width="160" height="11"/>
+            <rect class="bar" x="259" y="328" width="198" height="5"/>
+            <rect class="bar" x="259" y="342" width="160" height="5"/>
+            <rect class="bar" x="259" y="356" width="180" height="5"/>
+            <rect class="cell" x="240" y="268" width="256" height="180"/>
+          </g>
+        </svg>
+        <figcaption>这份幻灯片 4 种渲染的实际比例</figcaption>
+      </figure>
+      <div class="reading">
+        <ul class="marks">
+          <li><span class="mark bad">✗</span> 对外请求、JS 报错、横向滚动、幻灯片内容被裁：必须修</li>
+          <li><span class="mark">!</span> 被 <code>overflow: hidden</code> 裁掉的内容：对着截图确认</li>
+          <li><span class="mark">·</span> 截图按 1200px 高切块，能按原尺寸读</li>
+        </ul>
+        <p class="rule">没打开过的截图，不能说看过。</p>
+      </div>
+    </div>
+    <p class="src">来源：<code>scripts/check.py</code>；<code>SKILL.md</code> 的 Honesty 一节</p>
+    <aside class="notes">左图按比例画出这份幻灯片的 4 种渲染：400px 宽时整页等比缩小，不会横向滚动。幻灯片和原型用 --fragment 指定每一页、每个状态，每个都按 2 种宽度 × 2 种配色渲染。一次渲染超过 15 块截图时只截前 15 块，并明确警告。没找到 Chrome 时只跑静态扫描，脚本会说明页面没有被渲染过。</aside>
+  </section>
+
+  <section class="slide" id="s6" aria-label="第 6 页">
+    <h2>装好插件，说一句话，拿到一个文件</h2>
+    <ol class="steps">
+      <li><span class="n">1</span><p class="t">安装插件（Codex、Kimi Code、zCode 也能装）</p>
+        <p class="d"><code>claude plugin install awesome-html@rocky-awesome-html</code></p></li>
+      <li><span class="n">2</span><p class="t">说要什么页面</p>
+        <p class="d">“做个页面讲讲我们的登录流程”</p></li>
+      <li><span class="n">3</span><p class="t">拿到一个文件，原样发出去</p>
+        <p class="d">默认在项目里的 <code>html/&lt;slug&gt;.html</code>；多个文件时才打 zip</p></li>
+    </ol>
+    <p class="src">来源：<code>README.md</code> 的 Install、Use 两节；<code>SKILL.md</code> 契约第 2 条、工作流第 7 步</p>
+    <aside class="notes">另一个说法的例子：“把 docs/wip/launch.md 做成进度看板”。Claude Code 安装前先把 AWESOME_HTML_REPO 设为仓库 checkout 的绝对路径，再 claude plugin marketplace add "$AWESOME_HTML_REPO"。三个脚本只用 Python 标准库；浏览器检查需要 macOS 或 Linux，以及 Chrome、Chromium 或 Edge，别的浏览器用 AWESOME_HTML_CHROME 指定。</aside>
+  </section>
+
+  <section class="slide" id="s7" aria-label="第 7 页">
+    <h2>v1 已通过两轮实测，<wbr>上线还在等授权</h2>
+    <div class="cols">
+      <div>
+        <h3>已完成</h3>
+        <ul>
+          <li><span class="mark ok">✓</span>三个脚本，只用 Python 标准库</li>
+          <li><span class="mark ok">✓</span>SKILL.md、7 份参考文档、4 个模板</li>
+          <li><span class="mark ok">✓</span>实测：解释页、进度看板、原型、幻灯片</li>
+          <li><span class="mark ok">✓</span>4 个宿主的插件清单，MIT 许可</li>
+        </ul>
+      </div>
+      <div>
+        <h3>待办</h3>
+        <ul>
+          <li><span class="mark">·</span>设为默认的 HTML 生成方式</li>
+          <li><span class="mark">·</span>首次 git 提交</li>
+          <li><span class="mark">·</span>安装到本机的 Claude Code</li>
+          <li><span class="mark">·</span>替换并停用旧的 HTML skill</li>
+        </ul>
+      </div>
+    </div>
+    <p>上线的每一步都要项目负责人授权。</p>
+    <p class="src">来源：<code>docs/wip/html-skill.md</code>，更新于 2026-10-06；看板版本是 <code>examples/progress.html</code></p>
+    <aside class="notes">原型实测：check.py 通过 9 个状态 × 4 次渲染，子代理脚本点击验证 29 项断言。按实测反馈的修订已完成：截图按 1200px 分块、track.py、原型模板、参考文档按 3 份卡壳记录修订。第二轮复测已完成：独立子代理按修订后的 skill 重做了解释页，并新做了这份幻灯片。还没做：原型模板还没有经过独立子代理复测。</aside>
+  </section>
+
+  <section class="slide" id="s8" aria-label="第 8 页">
+    <h2><span class="nb">已知边界：</span><span class="nb">Windows 不渲染，</span><span class="nb">也不会自动点击</span></h2>
+    <ul>
+      <li>浏览器检查只支持 macOS 和 Linux；Windows 上只做静态扫描</li>
+      <li>只截加载后的样子：toast、加载中这类瞬时状态截不到</li>
+      <li>没有配色校验器，对比度和色盲区分只靠文字规则</li>
+      <li>幻灯片没有演讲者视图、逐步出现和总览网格</li>
+    </ul>
+    <p class="src">来源：<code>docs/wip/html-skill.md</code> 的“还没做”；<code>references/slides.md</code></p>
+    <aside class="notes">另外：inline.py 用正则改写标签，手写页面够用；属性里带 &gt; 或被注释掉的标签可能要手动内联（inline.py 文件头的 Ceiling 说明）。幻灯片需要演讲者视图时，要先问再引入 reveal.js（MIT，内联约 175 KB，需要先放进 vendor/）。WIP 记录里幻灯片还没有实测样例，这份是按 skill 文档做出来的一份。</aside>
+  </section>
+
+</main>
+<div class="progress" aria-hidden="true"></div>
+<div class="counter" aria-live="polite"></div>
+<script>
+(() => {
+  const slides = [...document.querySelectorAll(".slide")];
+  const root = document.documentElement;
+  const counter = document.querySelector(".counter");
+  let current = 0;
+  const fit = () => root.style.setProperty("--scale", String(Math.min(innerWidth / 1920, innerHeight / 1080)));
+  const fromHash = () => {
+    const n = parseInt(location.hash.slice(1), 10);
+    return Number.isFinite(n) ? n - 1 : 0;
+  };
+  const show = (index) => {
+    current = Math.max(0, Math.min(slides.length - 1, index));
+    slides.forEach((slide, n) => slide.classList.toggle("is-current", n === current));
+    root.style.setProperty("--progress", String((current + 1) / slides.length));
+    counter.textContent = `${current + 1} / ${slides.length}`;
+    try { history.replaceState(null, "", `#${current + 1}`); } catch { /* file:// can refuse */ }
+  };
+  addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(event.key)) show(current + 1);
+    else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(event.key)) show(current - 1);
+    else if (event.key === "Home") show(0);
+    else if (event.key === "End") show(slides.length - 1);
+    else return;
+    event.preventDefault();
+  });
+  addEventListener("click", (event) => {
+    if (event.target.closest("a, button, input, select, textarea, summary")) return;
+    show(current + (event.clientX > innerWidth / 3 ? 1 : -1));
+  });
+  let touchX = null;
+  addEventListener("touchstart", (event) => { touchX = event.touches[0].clientX; }, { passive: true });
+  addEventListener("touchend", (event) => {
+    if (touchX === null) return;
+    const dx = event.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) show(current + (dx < 0 ? 1 : -1));
+    touchX = null;
+  });
+  addEventListener("hashchange", () => show(fromHash()));
+  addEventListener("resize", fit);
+  fit();
+  show(fromHash());
+})();
+</script>
+</body>
+</html>
