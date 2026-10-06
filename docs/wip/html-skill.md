@@ -26,6 +26,8 @@
 | 2026-10-06 | 一个 skill，按页型拆参考文档，不拆成多个 skill | agent（owner 已认可方案） |
 | 2026-10-06 | v1 只内置 Chart.js；uPlot、reveal.js 等真需要时再说 | agent |
 | 2026-10-06 | 检查脚本只用 Python 标准库，通过 `--remote-debugging-pipe` 驱动本机 Chrome | agent |
+| 2026-10-06 | 上线四步（提交、安装、改规则、停用 answer-me-with-html）全部执行，并建远程仓库推送 | owner |
+| 2026-10-06 | 远程仓库先建成私有；改公开只需 `gh repo edit --visibility public` | agent |
 
 ## 进度
 
@@ -74,12 +76,13 @@
 - [完成] 幻灯片模板：列表符号对齐页边距、中文行高、中文标题不从词中间断开。证据：中文样张在 1280 宽度渲染，截图已看过
 - [完成] 文档：幻灯片用 1280 宽度检查，引用写文件加函数名而不是行号，同一系列页面沿用配色，中文字数上限。证据：仅结构检查（check_package.py），尚未复测
 
-### 上线（每项都需要 owner 授权）
+### 上线（owner 已授权，2026-10-06）
 
-- [待办] 首次 git 提交
-- [待办] 安装到本机的 Claude Code
-- [待办] 把 `~/.claude/CLAUDE.md` 的 `<html_pages>` 规则改为指向 awesome-html
-- [待办] 停用 `answer-me-with-html`
+- [完成] 首次 git 提交。证据：提交 f98b07c
+- [完成] 安装到本机的 Claude Code。证据：`claude plugin list` 显示 awesome-html@rocky-awesome-html 0.1.0，user 范围，已启用
+- [完成] 把 `~/.claude/CLAUDE.md` 的 `<html_pages>` 规则改为指向 awesome-html。证据：该段已改；`~/.claude` 是公开仓库，这处改动未提交
+- [完成] 停用 `answer-me-with-html`。证据：`claude plugin list` 显示 enabled=false；用 `claude plugin enable` 可恢复
+- [完成] 远程仓库（私有）并推送。证据：https://github.com/rocky2431/awesome-html-skill
 
 ## 还没做
 

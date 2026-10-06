@@ -140,7 +140,7 @@ a { color: var(--accent); overflow-wrap: anywhere; }
 <script type="application/json" id="track-data">
 {
   "title": "awesome-html v1",
-  "summary": "v1 已完成：脚本、模板、参考文档和四个实测样例都已就绪，经过两轮独立子代理复测和修订；剩下提交、安装、改规则这几步需要 owner 授权。",
+  "summary": "v1 已上线：已提交并推送到私有远程仓库，已安装到本机 Claude Code 并设为默认的 HTML 方式；剩下的是原型模板复测和配色校验器等增强项。",
   "updated": "2026-10-06",
   "source": "docs/wip/html-skill.md",
   "milestones": [
@@ -300,23 +300,32 @@ a { color: var(--accent); overflow-wrap: anywhere; }
       ]
     },
     {
-      "name": "上线（每项都需要 owner 授权）",
+      "name": "上线（owner 已授权，2026-10-06）",
       "items": [
         {
           "name": "首次 git 提交",
-          "status": "todo"
+          "status": "done",
+          "note": "证据：提交 f98b07c"
         },
         {
           "name": "安装到本机的 Claude Code",
-          "status": "todo"
+          "status": "done",
+          "note": "证据：claude plugin list 显示 awesome-html@rocky-awesome-html 0.1.0，user 范围，已启用"
         },
         {
           "name": "把 ~/.claude/CLAUDE.md 的 <html_pages> 规则改为指向 awesome-html",
-          "status": "todo"
+          "status": "done",
+          "note": "证据：该段已改；~/.claude 是公开仓库，这处改动未提交"
         },
         {
           "name": "停用 answer-me-with-html",
-          "status": "todo"
+          "status": "done",
+          "note": "证据：claude plugin list 显示 enabled=false；用 claude plugin enable 可恢复"
+        },
+        {
+          "name": "远程仓库（私有）并推送",
+          "status": "done",
+          "note": "证据：https://github.com/rocky2431/awesome-html-skill"
         }
       ]
     }
@@ -375,6 +384,16 @@ a { color: var(--accent); overflow-wrap: anywhere; }
     {
       "date": "2026-10-06",
       "decision": "检查脚本只用 Python 标准库，通过 --remote-debugging-pipe 驱动本机 Chrome",
+      "who": "agent"
+    },
+    {
+      "date": "2026-10-06",
+      "decision": "上线四步（提交、安装、改规则、停用 answer-me-with-html）全部执行，并建远程仓库推送",
+      "who": "owner"
+    },
+    {
+      "date": "2026-10-06",
+      "decision": "远程仓库先建成私有；改公开只需 gh repo edit --visibility public",
       "who": "agent"
     }
   ],
