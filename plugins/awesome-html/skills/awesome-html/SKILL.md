@@ -12,7 +12,7 @@ One file that opens anywhere, needs no account and no network, and looks made fo
 ## Contract for every page
 
 1. **One `.html` file, everything inside.** CSS in `<style>`, JS in `<script>`, images and fonts as `data:` URIs, diagrams as inline SVG. No CDN scripts, no web fonts, no remote images. Outbound `<a>` links are fine.
-2. **Location.** The path the user names. Otherwise `html/<slug>.html` at the project root. Outside a project, or inside a configuration directory such as `~/.claude`, use `~/awesome-html/<slug>.html`. Do not commit generated pages unless asked.
+2. **Location.** The path the user names, then the project's documented convention. Otherwise `html/<slug>.html` at the project root. On first use, create `html/` with a `README.md` whose first line is `<!-- managed-by: awesome-html -->`; an `html/` folder without that line belongs to the project (often a site's own files), so ask where the page should go instead of writing into it. Outside a project, or inside a configuration directory such as `~/.claude`, use `~/awesome-html/<slug>.html`. Do not commit generated pages unless asked.
 3. **Title and language.** `<title>` is a short name: two to four words, about 4 to 10 Chinese characters, or a mix such as `awesome-html 工作原理`. `<html lang>` matches the content (`zh-CN` for Chinese).
 4. **Theme.** Colors are tokens on `:root`; a designed dark theme under `prefers-color-scheme: dark`.
 5. **Width.** Works at 400px wide with no sideways scrolling. Slide decks are the exception: they scale a 16:9 stage and are checked at 1280px.

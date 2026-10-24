@@ -4,9 +4,10 @@ A tracker page shows where a project stands. It is a view, never the record.
 
 ## Source of truth
 
-- Progress lives in a Markdown file in the repository, usually the project's WIP document (`docs/wip/<slug>.md`). The page is regenerated from it by `scripts/track.py`; never record progress only in the HTML.
+- Progress lives in a Markdown file in the repository: the project's existing progress or WIP document (for example `docs/wip/<slug>.md`). The page is regenerated from it by `scripts/track.py`; never record progress only in the HTML.
 - If the user tells you a status, update the source file first, then regenerate.
-- If no source exists, propose `docs/wip/<slug>.md` in the layout below and confirm where it should live.
+- If no source exists, propose a progress file in the layout below and confirm where it should live.
+- A Task State record (`tasks/<id>.md`) is not a tracker source: its current-state block stays short and free-form, and its history is append-only, so milestone statuses that change in place belong in their own progress file.
 
 ## Source layout
 

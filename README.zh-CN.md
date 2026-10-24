@@ -53,7 +53,7 @@ codex plugin add awesome-html@rocky-awesome-html
 
 ## 使用
 
-直接提需求，比如"做个页面讲讲我们的登录流程"、"把 docs/wip/launch.md 做成进度看板"、"给新手引导做个三屏原型"。没指定路径时，页面输出到项目下的 `html/<slug>.html`。用这个 skill 做出的样例在 [`examples/`](examples/)。
+直接提需求，比如"做个页面讲讲我们的登录流程"、"把 docs/wip/launch.md 做成进度看板"、"给新手引导做个三屏原型"。没指定路径时，页面输出到项目下的 `html/<slug>.html`；第一次使用会建立 `html/` 并放一个 README，标明由 awesome-html 管理。已存在但没有这个标记的 `html/`（比如网站自己的文件）不会被写入。用这个 skill 做出的样例在 [`examples/`](examples/)。
 
 ## 目录结构
 

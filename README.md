@@ -63,7 +63,7 @@ Reload plugins or start a new session afterwards. Installation syntax can vary b
 
 ## Use
 
-Ask for the page: "make a page explaining how our auth flow works", "turn docs/wip/launch.md into a progress board", "prototype the onboarding flow, three screens". Pages go to `html/<slug>.html` in the project unless you name a path. See [`examples/`](examples/) for pages built with the skill.
+Ask for the page: "make a page explaining how our auth flow works", "turn docs/wip/launch.md into a progress board", "prototype the onboarding flow, three screens". Pages go to `html/<slug>.html` in the project unless you name a path; the first page creates `html/` with a README marking it as managed by awesome-html, and an existing `html/` folder without that marker (a site's own files, for example) is left alone. See [`examples/`](examples/) for pages built with the skill.
 
 ## Layout
 
